@@ -2617,7 +2617,7 @@ function renderData() {
     L.qOut ? ['Carried out of the open box', qs(L.qOut)] : null, ['All together', qs(qb + L.qWall + L.qObj + L.qOut)]].filter(Boolean)
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
-  drawSpec(); explainSync(); drawChain(); drawChainMap();
+  drawSpec(); explainSync(); drawChain(); drawDark(); drawChainMap();
   UI.lastMT = m.T; drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet(); drawZScan();
   restoreScroll('tp-data');
 }
@@ -2835,6 +2835,25 @@ function rampSync() {
 /* The chain-reaction readout: k (neutrons born per neutron ended, over the last 300 ends, engine.js kEnd), whether the
    chain grows, holds or dies, where the neutrons went, and what would help. */
 const KC_COL = ['#ff9f43', '#7aa2ff', '#a0a0a0', '#5c6370'];
+/* (1.39.3 items 113, 114) The dark-matter detector's and the helioscope's readout (W.dark, set by the setups lz and cast):
+   what was seen against what the model expects. */
+function drawDark() {
+  const D = W.dark, sec = $('dDarkSec'); if (!sec) return;
+  sec.hidden = !D; if (!D) return;
+  if (D.kind === 'wimp') {
+    const n = W.count.wimp || 0, x = W.count.wimpX || 0, kr = D.kr0 - W.parts.filter(p => !p.dead && p.k === NUC && p.Z === 36 && p.N === 49).length;
+    $('dDarkH').textContent = 'Dark-matter detector';
+    $('dDarkBig').textContent = `${n} nuclear recoil${n === 1 ? '' : 's'}`;
+    $('dDarkVal').textContent = `expected ${fmtNum(x, 3)}`;
+    $('dDarkNote').textContent = `Each WIMP that passes near a xenon nucleus strikes it with the chance its cross section gives (LZ’s 2024 limit, ${fmtSci(DKM.sigN, 2)} cm² a nucleon, × A² for coherence${W.ultra ? '' : ', shown 10²³ times'}): the count follows the expectation within about √n. Background: ${kr} ⁸⁵Kr β decay${kr === 1 ? '' : 's'} (electron recoils; decays sped up). A real detector sees a handful of nuclear recoils a year at most, and has seen none from dark matter.`;
+  } else {
+    const scr = W.objs.find(o => o.kind === 'screen'), n = scr && scr.hits ? scr.hits.light : 0, N = (W.count.axion || 0) + (W.count.axOut || 0), P = Math.sin(DKM.gAg * (W.ultra ? 1 : DKM.axBoost) * D.B * D.L * DKM.axK) ** 2;
+    $('dDarkH').textContent = 'Axion helioscope';
+    $('dDarkBig').textContent = `${n} photon${n === 1 ? '' : 's'} of ${N} axions`;
+    $('dDarkVal').textContent = N ? `${(100 * n / N).toFixed(0)} % (sin²(gBL/2) = ${(100 * P).toFixed(0)} %)` : `sin²(gBL/2) = ${(100 * P).toFixed(0)} %`;
+    $('dDarkNote').textContent = `Over the magnet’s ${D.L} Å at ${D.B} T an axion turns into a photon with the chance sin²(gBL/2)${W.ultra ? ' (g at CAST’s limit: none here)' : ', g shown 10¹⁷ times CAST’s limit'}; the screen at its end catches the photons made before it, a fraction that follows that chance within about √(P(1−P)/N). CAST saw no more X-rays with the magnet on the Sun than off it, which sets that limit.`;
+  }
+}
 function drawChain() {
   const K = W.kc, sec = $('dChainSec');
   sec.hidden = !K || K.ends < 5; if (sec.hidden) return;
@@ -4884,6 +4903,21 @@ const PRESETS = {
       for (let i = 0; i < 7; i++) for (let j = 0; j < 6; j++) addMolecule('H2O', -6 + i * 3.4, -8.5 + j * 3.4, rnd() * 6, 300);
       const pb = spawnSpec(SPEC_PBAR, -24, 0.4, 0)[0]; setMotion(pb, 4, 1, 0);
       OPT.fire.proj = 'pbar'; OPT.fire.s = 300; } },
+  /* (1.39.3 items 113, 114) A dark-matter detector and an axion helioscope. */
+  lz: { group: 'Real labs', name: 'LZ: a dark-matter detector', tool: 'inspect', spec: { kind: 'exo', sp: 'wimp' },
+    hint: '<b>LZ, a mile under South Dakota: liquid xenon at 165 K, and the "WIMP wind" through it.</b> The Sun carries the Earth through the galaxy’s dark matter at 230 km/s, so hypothetical 40 GeV WIMPs (χ, unseen) stream in from the left. Now and then one knocks a xenon nucleus (a flash, a recoil of a few keV), as often as LZ’s limit on the cross section allows shown 10²³ times more often; the Data tab counts the recoils against what the cross section expects. The few ⁸⁵Kr atoms (sped-up decays) are the background: their β electrons are electron recoils, which the real detector tells apart from nuclear ones by the ratio of light to charge.',
+    build() { baseWorld(150, 84, 165, 0.02); W.wall = 'open'; W.decayOn = true; W.warp = 5e19; W.simPerFrame = 0.1;
+      let k = 0;
+      for (let i = 0; i < 25; i++) for (let j = 0; j < 16; j++) { const x = -50 + i * 4.4 + (j % 2) * 2.2 + (rnd() - 0.5) * 0.6, y = -33 + j * 4.4 + (rnd() - 0.5) * 0.6; if (k++ % 80 === 37) addAtom('Kr', x, y, { A: 85 }); else addAtom('Xe', x, y, { A: 131 }); }
+      for (const [x0, y0, x1, y1] of [[-54, -37, 62, -37], [62, -37, 62, 37], [62, 37, -54, 37], [-54, 37, -54, -37]]) objAdd('wall', x0, y0, x1, y1); // (the tank: the xenon stays in, the WIMPs pass through its walls)
+      W.dark = { kind: 'wimp', kr0: W.parts.filter(p => p.Z === 36).length };
+      W.sources.push({ x: -72, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'wimp' }, KE: 0.5 * XP.wimp.m / PHYS.AMU_MEV * (2.3e5 * 1e10 * PHYS.TU_S) ** 2, rate: 0.35, acc: 0.5, jitter: 70 }); } },
+  cast: { group: 'Real labs', name: 'CERN CAST: axions from the Sun', tool: 'inspect', spec: { kind: 'exo', sp: 'axion' },
+    hint: '<b>CAST, an LHC test magnet aimed at the Sun: 9 T over its length.</b> Hypothetical axions (a, unseen) made in the Sun’s core stream in from the left at a few keV; in the field each can turn into an X-ray photon of the same energy (the Primakoff effect), with a chance sin²(gBL/2) that grows along the magnet. The screen at the end catches the photons; the Data tab counts them against that chance. The coupling g is shown 10¹⁷ times CAST’s limit, so the 200 Å magnet does what a real one would need far more than the Sun’s distance for.',
+    build() { baseWorld(240, 70, 300, 0); W.wall = 'open'; W.decayOn = false; W.Bz = 9; W.simPerFrame = 4e-5;
+      objAdd('screen', 100, -30, 100, 30).view = 'where';
+      W.dark = { kind: 'axion', B: 9, L: 200 };
+      W.sources.push({ x: -100, y: 0, ux: 1, uy: 0, spec: { kind: 'exo', sp: 'axion' }, KE: 4.2e3, rate: 2000, acc: 0.5, jitter: 40 }); } },
   isolde: { group: 'Real labs', name: 'CERN ISOLDE: rare isotopes', tool: 'inspect', spec: SPEC_P,
     hint: '<b>ISOLDE, CERN’s isotope factory: 1.4 GeV protons into uranium at 2,000 °C.</b> Each hit shatters a nucleus (spallation, fragmentation, fission) into rare isotopes, listed in the Data tab. Hits are made far more frequent here than in real uranium, so you can watch them.',
     build() { baseWorld(130, 64, 2273, 0.05);

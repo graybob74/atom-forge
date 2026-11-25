@@ -700,6 +700,28 @@ PARTS.bsmc = async (page, check) => { // (1.39.3 item 112: hypothetical particle
   check(ok && s13.join() === '0.15,0.04,0.6' && off, `1.39.3 TeV proton collisions make a Z′, leptoquarks (pairs and single, linked) and black holes (boosted for the test), an e⁺e⁻ collider at 6 TeV the Z′ (${r.flat.zp} of 20), charge, baryon number and books exact, flat and 3-D; off by default (${JSON.stringify(r.flat.got)})`,
     `1.39.3 bsmc: ${JSON.stringify(r)} σ13 ${s13} off ${off}`);
 };
+PARTS.labs = async (page, check) => { // (1.39.3 items 113, 114: LZ and CAST, Real labs)
+  const X = load('all', { seed: 4 }), W = X.W; X.PRESETS.lz.build();
+  let f = 0; while (W.t < 200 && f < 12000) { X.simFrame(1 / 60, 1e6); f++; }
+  const n = W.count.wimp || 0, x = W.count.wimpX || 0, kr = W.dark.kr0 - W.parts.filter(p => !p.dead && p.Z === 36).length, lzOk = W.dark.kind === 'wimp' && x > 2 && Math.abs(n - x) < 3 * Math.sqrt(x) + 1 && W.parts.length >= 390;
+  const Y = load('all', { seed: 4 }), V = Y.W; Y.PRESETS.cast.build();
+  for (let i = 0; i < 20000; i++) Y.step(1e-5);
+  const scr = V.objs.find(o => o.kind === 'screen'), N = V.count.axion + V.count.axOut, P = Math.sin(Y.DKM.gAg * Y.DKM.axBoost * 9 * 200 * Y.DKM.axK) ** 2, fr = scr.hits.light / N;
+  const castOk = V.dark.kind === 'axion' && N > 200 && Math.abs(fr - P) < 4 * Math.sqrt(P * (1 - P) / N) && scr.hits.parts === 0;
+  check(lzOk && castOk && Y.PRESETS.lz.group === 'Real labs' && Y.PRESETS.cast.group === 'Real labs', `1.39.3 LZ: ${n} xenon recoils against ${x.toFixed(1)} expected in ${W.t.toFixed(0)} tu (${kr} ⁸⁵Kr decays); CAST: ${(100 * fr).toFixed(0)} % of ${N} axions caught as photons against sin²(gBL/2) = ${(100 * P).toFixed(0)} %, the screen blind to the axions`,
+    `1.39.3 labs: lz ${n} vs ${x} kr ${kr} parts ${W.parts.length}; cast ${scr.hits.light}/${N} = ${fr} vs ${P}, parts on screen ${scr.hits.parts}`);
+};
+PARTS.labsPage = async (page, check) => { // (1.39.3: the readout in the Data tab)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    const w = (ms) => new Promise(res => setTimeout(res, ms)), o = {};
+    for (const k of ['lz', 'cast']) { loadPreset(k); setRunning(true); showTab('data', true); await w(2500); renderData(); o[k] = [$('dDarkSec').hidden, $('dDarkH').textContent, $('dDarkBig').textContent, $('dDarkVal').textContent]; }
+    loadPreset('empty'); renderData(); o.gone = $('dDarkSec').hidden; return o;
+  });
+  if (own) { if (own.errors.length) check(false, '', '1.39.3 labs page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+  check(!r.lz[0] && /Dark-matter/.test(r.lz[1]) && /expected/.test(r.lz[3]) && !r.cast[0] && /helioscope/.test(r.cast[1]) && /sin²/.test(r.cast[3]) && r.gone,
+    `1.39.3 the Data tab's readout: LZ "${r.lz[2]}, ${r.lz[3]}"; CAST "${r.cast[2]}, ${r.cast[3]}"; gone in other setups`, `1.39.3 labsPage: ${JSON.stringify(r)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

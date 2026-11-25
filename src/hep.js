@@ -1284,7 +1284,8 @@ function wimpStep(o, x0, y0, z0) {
     if (tg.dead || o.hitId === tg.id) continue;
     const A = tg.Z + tg.N, mA = nucMeV(tg.Z, tg.N), mu = o.m * mA / (o.m + mA);
     const sig = DKM.sigN * 1e16 * A * A * (mu / mun) * (mu / mun) * boostF; // Å²
-    if (rnd() >= Math.min(1, sig / (Math.PI * R * R))) continue;
+    const pHit = Math.min(1, sig / (Math.PI * R * R)); W.count.wimpX = (W.count.wimpX || 0) + pHit; // (the recoils the cross section expects, for the dark-matter detector's readout, 1.39.3 item 113)
+    if (rnd() >= pHit) continue;
     o.hitId = tg.id;
     const p1 = exoP4(o), p2 = p4Nuc(tg), P = p1.map((c, i) => c + p2[i]), b = P.slice(1).map(c => c / P[0]);
     const c1 = boostN(p1, b), pc = Math.hypot(...c1.slice(1)), u = rdir(), nb = b.map(c => -c);
@@ -3151,6 +3152,7 @@ function exoHits3(o, x0, y0, z0) {
   return false;
 }
 function exoLeaves(o, where) { // its energy, mass included, leaves the books (it decays out there, into radiation)
+  if (o.sp === 'axion') W.count.axOut = (W.count.axOut || 0) + 1; // (through the magnet unconverted: the helioscope's readout, 1.39.3 item 114)
   W.ledger.escaped += o.KE + o.m * MEV; W.ledger.nuc += o.m * MEV; chargeTo(XP[o.sp].q, where);
   o.dead = true; o.fate = o.fate || 'left the chamber';
 }

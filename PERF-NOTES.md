@@ -2064,6 +2064,18 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   scalar leptoquark pairs through the photon (0.08 fb at 6 TeV). With the switch off no number is drawn (the
   fingerprints unchanged). Check: f_139 `bsmc` (boost 10¹⁵ for the test at 100 TeV: BH 32, Z′ 10, LQ pair 1, single 1 of
   80; links, charge, B and books exact; e⁺e⁻ at 6 TeV: Z′ in 20 of 20).
+- **113, LZ: a dark-matter detector** (Real labs, `PRESETS.lz`): 400 xenon atoms at 165 K (liquid xenon's spacing,
+  4.4 Å) in a tank of four wall objects, five ⁸⁵Kr among them for the background (β decays sped up 5·10¹⁹: about two a
+  minute), and the "WIMP wind" from the left: 40 GeV WIMPs at 230 km/s (11.8 keV), two a second. `wimpStep` now sums
+  the recoils its cross section expects (`W.count.wimpX`); the Data tab's new section (`drawDark`, `W.dark`) shows the
+  recoils against it and the β count. Measured: 10 recoils against 8.0 expected in a minute of play (seed 4; 1.3 ms a
+  frame in Node).
+- **114, CAST: an axion helioscope** (Real labs, `PRESETS.cast`): 9 T over the box, 4.2 keV axions from the left, a
+  screen 200 Å on; the Data tab counts the photons the screen caught against N · sin²(gBL/2) (`W.count.axOut`, counted
+  in `exoLeaves`). Measured: 141 of 586 (24.1%) against 24.4%. Found on the way: every placed object stopped an axion or
+  a WIMP, and a screen counted them as particles (171 of 226 "hits" were axions). Now WIMPs, axions, sterile neutrinos
+  and neutralinos pass through placed objects (`OBJ_GHOST`); the screen counts 0 of them.
+- Checks: f_139 `labs` (both setups, flat), `labsPage` (the readout in the page).
 - f_ew's antihydrogen fingerprint updated: 1.39.2's fix (antimatter ions sized as their mirrors) changes that setup's
   run (its ions' contact radius, `ljR`); found here, not caught then because f_ew was not in that release's list.
 - Info pages for each (Ω baryon, Pionium, True muonium, Antiprotonic helium, Diquark for the remnant); the Hypothetical
@@ -4918,9 +4930,9 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    Built in 1.39.3 (a Settings switch, off by default; real rates in the ultra-realistic mode).
 113. **A dark-matter detector setup** (as LZ): a tank of liquid xenon, a "WIMP wind" through it at the galaxy's 230 km/s,
    the rare recoils lit and counted against the rate the cross section gives; the background from the tank's own
-   radioactivity for comparison.
+   radioactivity for comparison. Built in 1.39.3.
 114. **An axion helioscope setup** (as CAST): a long strong magnet aimed at a stream of keV axions (the Sun's), a detector
-   at its end counting the photons they turn into, the count against sin²(gBL/2).
+   at its end counting the photons they turn into, the count against sin²(gBL/2). Built in 1.39.3.
 115. **A particle detector object** (as ATLAS and CMS, in layers): a tracker (charged tracks, curved in its field), an
    electromagnetic calorimeter (electrons and photons stop and shower), a hadron calorimeter (hadrons), muon chambers
    (only muons reach them), neutrinos as missing momentum; each layer lights what it measures.

@@ -308,8 +308,10 @@ function foilCross(p, ob, cx, cy, x0, y0) {
   if (p.trk) { const pts = p.trk.pts; pts.push(cx, cy); if (p.trk.ts) p.trk.ts.push(W.rt); if (p.trk.tt) p.trk.tt.push(W.t); }
   return false;
 }
+const OBJ_GHOST = new Set(['wimp', 'axion', 'nuS', 'neut']);
 /* A pion, muon, kaon … in flight (hep.js): a wall turns it back, a foil lets it through, anything else stops it. */
 function objExo(o, x0, y0) {
+  if (OBJ_GHOST.has(o.sp)) return false; // (1.39.3: WIMPs, axions, sterile neutrinos and neutralinos pass through placed objects, as through matter; a screen does not see them)
   const h = objCross(x0, y0, o.x, o.y); if (!h) return false;
   const k = h.ob.kind;
   if (k === 'foil') return false;
