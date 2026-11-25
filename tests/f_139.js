@@ -100,7 +100,7 @@ PARTS.hypo = async (page, check) => {
   const grp = X.PCATS.find(g => g[0] === 'Hypothetical'), sps = grp ? grp[1].map(e => e.sp) : [];
   const names = sps.every(sp => /hypothetical/.test(X.XP_NAME[sp] || '')), kinds = sps.every(sp => X.madeKind({ t: 'x', sp }) === 'Hypothetical');
   const multi = ['X3872', 'Tcc'].every(sp => X.PCATS.find(g => g[0] === 'Multiquarks')[1].some(e => e.sp === sp));
-  check(s.fate === 'left the chamber' && s.KE === 1e9 && sps.length === 15 && names && kinds && multi, `1.39 the sexaquark crosses 40 Å of lead untouched and leaves, stable; the Hypothetical menu holds 15 (7 in 1.39.0), each named "hypothetical" and listed so in Made here; the tetraquarks are under Multiquarks`,
+  check(s.fate === 'left the chamber' && s.KE === 1e9 && sps.length === 16 && names && kinds && multi, `1.39 the sexaquark crosses 40 Å of lead untouched and leaves, stable; the Hypothetical menu holds 16 (7 in 1.39.0), each named "hypothetical" and listed so in Made here; the tetraquarks are under Multiquarks`,
     `1.39 hypo: Sx dead ${s.dead} KE ${s.KE}, ${sps}, names ${names} kinds ${kinds} multi ${multi}`);
 };
 PARTS.page = async (page, check) => {
@@ -531,8 +531,8 @@ PARTS.more = async (page, check) => { // (1.39.1 item 108: more hypothetical par
     V.wall = 'open'; Y.forcesNoEvents(); V.fSpawn = V.spawned; Y.step(1e-9); const o = Y.addExo(sp, -19, 0, 2e5, 1, 0), K0 = o.KE; for (let s = 0; s < 400 && !o.dead && o.x < 18; s++) Y.step(0.002); return K0 - o.KE; };
   const lm = loss('mCP'), lp = loss('pi+');
   const Y = load('all', { seed: 1 }), grp = Y.PCATS.find(g => g[0] === 'Hypothetical')[1].map(e => e.sp), kinds = ['Zp', 'BH', 'nuS'].every(sp => Y.madeKind({ t: 'x', sp }) === 'Hypothetical');
-  check(chg && bk < 1e-12 && hit === 40 && lp > 0 && lm <= lp * 1e-4 && grp.length === 15 && kinds,
-    `1.39.1 more hypothetical particles, each decaying with charge kept and the books exact (to ${bk.toExponential(0)} of its mass), flat and 3-D: ${Object.entries(res).map(([k, v]) => `${k} → ${v[1]}${v[0] > 3 ? ` (${v[0]} made)` : ''}`).join('; ')}; the neutralino recoils off xenon as a WIMP; a millicharged particle loses ${lm < 1e-3 ? "nothing measurable" : X.fmtE(lm)} where a pion loses ${X.fmtE(lp)}; Hypothetical holds 15, listed so in Made here (the Z′ too)`,
+  check(chg && bk < 1e-12 && hit === 40 && lp > 0 && lm <= lp * 1e-4 && grp.length === 16 && kinds,
+    `1.39.1 more hypothetical particles, each decaying with charge kept and the books exact (to ${bk.toExponential(0)} of its mass), flat and 3-D: ${Object.entries(res).map(([k, v]) => `${k} → ${v[1]}${v[0] > 3 ? ` (${v[0]} made)` : ''}`).join('; ')}; the neutralino recoils off xenon as a WIMP; a millicharged particle loses ${lm < 1e-3 ? "nothing measurable" : X.fmtE(lm)} where a pion loses ${X.fmtE(lp)}; Hypothetical holds 16, listed so in Made here (the Z′ too)`,
     `1.39.1 more: charge ${chg} books ${bk} hit ${hit} loss ${lm}/${lp} grp ${grp.length} kinds ${kinds} ${JSON.stringify(res)}`);
 };
 PARTS.anim = async (page, check) => { // (1.39.2: the new navigation animated)
@@ -619,6 +619,24 @@ PARTS.ptable = async (page, check) => { // (1.39.2: "more like a real periodic t
     `1.39.2 the periodic table: each cell has its name and mass ("${r.cell}"), the chosen element large in the gap between Be and B with its facts ("${r.keyTxt.slice(0, 40)}…"); About drops down over the window (its height ${r.h0} px before and after); the isotope builder's "‹ Periodic table" goes back to the table at what was built (⁶⁴Cu); an anti-element's bar sits over its symbol, clear of the atomic number (cells and the big tile)`,
     `1.39.2 ptable: ${JSON.stringify(r)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39.2 ptable errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
+PARTS.lq = async (page, check) => { // (1.39.2 item 110: leptoquarks, made and decaying as pairs)
+  const res = []; let ok = true;
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 4 }), W = X.W;
+    for (let k = 0; k < 3; k++) {
+      (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build(); W.decayOn = false; W.gamma = 0;
+      const BK = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, Q = () => { let q = 0; for (const e of W.exo) if (!e.dead) q += e.q; for (const p of W.parts) if (!p.dead) q += p.k === X.NUC ? (p.anti ? -1 : 1) * p.Z - (p.ne || 0) : p.k === X.ELEC ? -1 : 1; return q; };
+      const a = X.fireSpec({ kind: 'exo', sp: 'LQ' }, 0, 0, 1, 0, 1e6, false, 0, 0), live = W.exo.filter(e => !e.dead), pair = live.length === 2 && live[1].sp === 'LQb' && a.pair === live[1] && Math.abs(live[0].q + live[1].q) < 1e-12;
+      const e0 = BK(), q0 = Q(); if (d3) X.decayExo3(a); else X.decayExo(a);
+      const leps = W.parts.filter(p => !p.dead && (p.k === X.ELEC || p.k === X.POS)).length + W.exo.filter(e => !e.dead && /^e[+-]$/.test(e.sp)).length;
+      const r = { pair, dq: Math.abs(Q() - q0), bk: Math.abs(BK() - e0) / 4e12, made: W.exo.filter(e => !e.dead).length, both: a.dead && a.pair.dead };
+      if (!(r.pair && r.dq < 1e-9 && r.bk < 1e-13 && r.made > 20 && r.both)) ok = false; res.push(r);
+    }
+  }
+  const Y = load('all', { seed: 1 }), card = Y.fmtQ(-1 / 3);
+  check(ok && card === '−⅓', `1.39.2 a leptoquark (2 TeV, charge ${card}) is placed with its antiparticle, flying apart; the two decay together to e⁻ e⁺ and two jets (${res.map(r => r.made).join(', ')} hadrons), charge kept and the books to ${Math.max(...res.map(r => r.bk)).toExponential(0)} of their energy, flat and 3-D`,
+    `1.39.2 lq: ${JSON.stringify(res)} card ${card}`);
 };
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {

@@ -2033,7 +2033,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.39.2 (not released): the particle menus animated (the owner, 2026-11-24: "can you animate the new navigation")
+## 1.39.2 (released 2026-11-24): the particle menus animated (the owner, 2026-11-24: "can you animate the new navigation")
 
 With Settings' motion on, as the other menus: a menu drops in from its button (`moPop`, as before), a group's list slides
 in from the right and "‹ back" slides the groups in from the left (0.16 s, `pmenuAnim`, `pmFwd`/`pmBack`), and the
@@ -2092,6 +2092,15 @@ every time"). Back to the table, showing what was built (its element, isotope an
 **"Put it back" removed** from the Inside close-up (the owner: "remove the put it back button from the inspect panel"). A
 pulled quark already changes the particle, and the picture follows what is left; it starts afresh with the next
 particle chosen. Test: f_139.js cards (no "Put it back").
+
+**Item 110: leptoquarks, as pairs** (the owner: "Build it, then release"). A scalar S₁-like leptoquark, charge −⅓
+(LQ → e⁻ u), 2.0 TeV: above the LHC's pair-production limits for first-generation ones (about 1.8 TeV); with a small
+coupling, y = 0.1 (Γ = y²M/16π = 0.40 GeV, τ 1.65×10⁻²⁴ s), below ATLAS's 2025 resonant search (to 3.4 TeV for y = 1).
+Placing one makes its antiparticle too, flying apart (`pairMade`, fireSpec); the first to decay takes both
+(`lqPairDecay`): each to its lepton and a quark, isotropic in its own frame, the two quarks one dijet system made into
+hadrons as two jets along their directions in its frame, as a Z′'s; e⁻ e⁺ and about 220 hadrons, charge kept, the books
+to 10⁻¹⁵ of their 4 TeV. If its partner is gone it is taken out, booked as leaving (it cannot decay alone here). Charges
+in thirds read as such (`fmtQ`: −⅓). Hypothetical now holds 16. Test: f_139.js lq.
 
 ## 1.39.1 (released 2026-11-24): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
 After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
@@ -4857,8 +4866,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    charge kept; at the LHC they are made in pairs. So placing one sets down a leptoquark and its antiparticle flying
    apart; each decays at once to its lepton and a quark, the two quarks hadronized together as one dijet system (as the
    Z′'s), charge and books exact. Mass just above the LHC's pair-production limits (check: about 1.5–2 TeV by type and
-   lepton); labelled hypothetical, with the B-anomaly story (LHCb's 2022 R_K back at the Standard Model). Waiting for
-   "build it".
+   lepton); labelled hypothetical, with the B-anomaly story (LHCb's 2022 R_K back at the Standard Model). Built in
+   1.39.2.
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,

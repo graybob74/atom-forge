@@ -1611,6 +1611,7 @@ const P_INFO = {
   Ps: ['An electron and a positron orbiting each other, an atom with no nucleus, first made in 1951. It annihilates into gamma rays in 0.1 ns or 142 ns, depending on its spins.', 'Positronium'],
   Mu: ['An antimuon with an electron around it, a light isotope of hydrogen, first made in 1960. It lives 2.2 µs and is used to probe magnetism in materials.', 'Muonium'],
   penta: ['Five quarks bound together: four quarks and an antiquark. Allowed by the quark model since 1964 but only found in 2015, by CERN’s LHCb experiment, in the decays of Λb baryons; whether they are one bag or a baryon and a meson stuck together is still debated.', 'Pentaquark'],
+  lq: ['A hypothetical boson joining quarks and leptons, predicted by grand unified theories; searched for at the LHC, none found.', 'Leptoquark'],
   sterile: ['A neutrino that does not feel the weak force: only gravity, and mixing with the other three. Heavy ones could be dark matter or explain the neutrinos’ tiny masses.', 'Sterile_neutrino'],
   glue: ['A particle of gluons alone, which the theory of the strong force predicts; candidates are seen, none confirmed.', 'Glueball'],
   rhad: ['A long-lived supersymmetric particle (a gluino or squark) bound with ordinary quarks.', 'R-hadron'],
@@ -1635,7 +1636,7 @@ function infoKeyX(sp) {
   const d = XP[sp]; if (!d) return null;
   if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.pn) return 'Pn'; if (d.aq) return 'eaq'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
   if (sp === 'Mu') return 'Mu';
-  if (sp === 'nuS' || sp === 'HNL') return 'sterile'; if (sp === 'G2370') return 'glue'; if (sp === 'Rg' || sp === 'Rgb') return 'rhad'; if (sp === 'neut') return 'neut'; if (sp === 'Zp') return 'zprime'; if (sp === 'mCP' || sp === 'mCPb') return 'mcp'; if (sp === 'BH') return 'mbh'; // (1.39.1)
+  if (sp === 'LQ' || sp === 'LQb') return 'lq';   if (sp === 'nuS' || sp === 'HNL') return 'sterile'; if (sp === 'G2370') return 'glue'; if (sp === 'Rg' || sp === 'Rgb') return 'rhad'; if (sp === 'neut') return 'neut'; if (sp === 'Zp') return 'zprime'; if (sp === 'mCP' || sp === 'mCPb') return 'mcp'; if (sp === 'BH') return 'mbh'; // (1.39.1)
   if (sp === 'X3872' || sp === 'Tcc' || sp === 'Tccb') return 'tetra'; if (sp === 'wimp' || sp === 'axion') return sp; if (sp === 'slet') return 'slet'; if (sp === 'mono') return 'mono'; if (sp === 'Ap') return 'dphot'; if (sp === 'Sx' || sp === 'Sxb') return 'hexa'; if (sp === 'LL6He' || sp === 'ahy1_2') return 'hy'; // (1.39)
   if (sp.startsWith('Pc')) return 'penta'; if (sp === 'dstar') return 'hexa';
   const F = [['mu', 'mu'], ['tau', 'tau'], ['pi', 'pi'], ['Ks', 'Ks'], ['K', 'K'], ['eta', 'eta'], ['rho', 'rho'], ['omega', 'omega'], ['phi', 'phi'], ['Dpp', 'Delta'], ['Dp', 'Delta'], ['D0', 'Delta'], ['Dm', 'Delta'], ['Dbmm', 'Delta'], ['Dbm', 'Delta'], ['Db0', 'Delta'], ['Dbp', 'Delta'],
@@ -12596,6 +12597,11 @@ function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   if (spec.kind === 'nu') { emitNeutrino(x, y, KE, ux, uy, !!spec.anti, 'fired by hand', spec.fl || 'e', z, uz); return null; }
   if (spec.kind === 'exo' && spec.sp === 'Mu') return addMuonium(x, y, Math.max(1, KE), ux, uy, 1, z, uz); // (1.12: an atom, in MD; 3-D: in depth, 1.25)
   if (spec.kind === 'exo') { _evTag = 0; _evRoot = 0; } // (fired from outside: no event's, 1.34.1)
+  if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].pairMade) { // (a leptoquark: made with its antiparticle, flying apart, as at the LHC; 1.39.2 item 110)
+    if (W.exo.length >= MAX_EXO - 1) return null;
+    const K = Math.max(1, KE), a = addExo(spec.sp, x, y, K, ux, uy, resPlaceMass(spec.sp), z, uz), b = addExo(XP[spec.sp].cc, x, y, K, -ux, -uy, resPlaceMass(XP[spec.sp].cc), z, -uz);
+    a.pair = b; b.pair = a; return a;
+  }
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, resPlaceMass(spec.sp), z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)
   const ps = spawnClear(spec, x, y, 0, free, z);
   if (!ps.length) return null;
@@ -27018,13 +27024,19 @@ Object.assign(XP, {
   neut: { lab: 'χ̃⁰', m: 1e5, q: 0, B: 0, tau: Infinity, col: [160, 160, 210], cc: 'neut', hypo: true, dark: 'wimp', strong: false, dec: [] },
   Zp: { lab: 'Z′', m: 6e6, w: 1.86e5, q: 0, B: 0, tau: 3.54e-27, col: [205, 150, 255], cc: 'Zp', res: true, ew: true, hypo: true, dec: [[0.033632, ['e-', 'e+']], [0.033662, ['mu-', 'mu+']], [0.033696, ['tau-', 'tau+']], [0.2 / 3, ['nu', 'nub']], [0.2 / 3, ['numu', 'numub']], [0.2 / 3, ['nutau', 'nutaub']]] },
   mCP: { lab: 'χq', m: 100, q: 0.001, B: 0, tau: Infinity, col: [200, 230, 160], cc: 'mCPb', hypo: true, strong: false, dec: [] },
+  /* (1.39.2 item 110) A scalar leptoquark, S₁-like (charge −⅓: e⁻ u), 2.0 TeV: above the LHC's pair-production limits for a
+     first-generation one (about 1.8 TeV) and, with a small coupling (y = 0.1: Γ = y²M/16π = 0.40 GeV, τ 1.65×10⁻²⁴ s),
+     below the resonant searches' reach (ATLAS 2025: up to 3.4 TeV, but for y = 1). Made only as a pair (pairMade: the
+     placing makes its antiparticle too), and the pair decays together (bsmDecay 'lq'): its lone quark could not become
+     hadrons with the charge whole. */
+  LQ: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 0, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, pairMade: true, bsm: 'lq', dec: [[1, ['e-']]] },
   BH: { lab: 'BH', m: 1.2e7, q: 0, B: 0, tau: 1e-27, col: [120, 80, 160], cc: 'BH', res: true, hypo: true, strong: false, bsm: 'bh', dec: [[1, ['g']]] },
 });
 /* A strangelet of A quarks-in-threes (bag model, absolutely stable strange matter assumed): ε₀ = 900 MeV a baryon
    (below the 930 MeV of iron's, which is what would make it stable) and a surface term, MeV. Charge about 0.1·A. */
 function sletMass(A) { return A * (900 + 50 / Math.cbrt(A)); }
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n', d: 'dbar', dbar: 'd', t: 'tbar', tbar: 't', h: 'hbar', hbar: 'h', a: 'abar', abar: 'a' })[t] || t; }
-for (const [k, of, lab] of [['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['LQb', 'LQ', 'L̄Q'], ['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
   if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰', 'Tcc⁺': 'T̄cc⁻', S: 'S̄' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)
@@ -28039,6 +28051,7 @@ function darkStep(o, d, x0, y0, z0, h) {
    decay in turn), in an isotropic burst. The books as any decay. */
 function bsmDecay(o) {
   const d = XP[o.sp], M = o.m;
+  if (d.bsm === 'lq') { lqPairDecay(o); return; }
   let items;
   if (d.bsm === 'rh') { const mx = XP.neut.m, h = hadronize(M - mx, 0, d.q > 0 ? 1 : -1); if (!h) { exoLeaves(o); return; } items = [{ t: 'x', sp: 'neut' }, ...h]; }
   else {
@@ -28061,6 +28074,36 @@ function bsmDecay(o) {
   flash(o.x, o.y, d.col, d.bsm === 'bh' ? 8 : 4.5, 0.6, z);
   tally(items, [], `Decay: ${txt}`);
   nucEvent('pdecay', o.x, o.y, `Decay: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.12, lbl: o.lab }], d.bsm === 'bh' ? 'Hawking radiation: hotter the smaller, so a TeV black hole lives about 10⁻²⁷ s (hypothetical: needs gravity strong at TeV energies)' : `mean life ${fmtTime(d.tau)} (hypothetical)`, undefined, z);
+  log('nuc', `Decay: ${txt}`);
+}
+/* (1.39.2 item 110) A leptoquark pair decays together: each to its lepton and a quark (LQ → e⁻ u, its antiparticle → e⁺ ū,
+   isotropic in its own frame), the two quarks one dijet system made into hadrons as two jets along their directions,
+   in that system's frame (as a Z′'s); the books closed over both. */
+function lqPairDecay(o) {
+  const b = o.pair && !o.pair.dead ? o.pair : null, z = W.d3 ? (o.z || 0) : 0;
+  if (!b) { o.fate = 'decayed with its antiparticle'; o.dead = true; exoLeaves(o); return; } // (its partner gone, it cannot decay alone here: it is taken out, its energy booked as leaving)
+  const lab = [], qs = [], d3 = W.d3;
+  for (const L of [o, b]) {
+    const P = exoP4(L), M = L.m, be = P.slice(1).map(c => -c / P[0]), u = rdir(), me = 0.51099895, k = (M * M - me * me) / (2 * M);
+    lab.push(boostN([Math.sqrt(k * k + me * me), ...u.map(c => c * k)], be)); qs.push(boostN([M - Math.sqrt(k * k + me * me), ...u.map(c => -c * k)], be));
+  }
+  const Q = qs[0].map((c, i) => c + qs[1][i]), mjj = Math.sqrt(Math.max(0, Q[0] * Q[0] - Q.slice(1).reduce((a, c) => a + c * c, 0)));
+  const bq = Q.slice(1).map(c => c / Q[0]), q1 = boostN(qs[0], bq), qa = q1.slice(1), qn = Math.hypot(...qa) || 1, ax = qa.map(c => c / qn);
+  const its = hadronize(mjj, 0, 0), vs = its && jetMomenta(its, mjj, ax[0], ax[1], d3 ? { ax3: ax } : {});
+  if (!its || !vs) { o.dead = true; b.dead = true; exoLeaves(o); exoLeaves(b); return; }
+  const nb = bq.map(c => -c), items = [item(o.sp === 'LQ' ? 'e-' : 'e+'), item(o.sp === 'LQ' ? 'e+' : 'e-'), ...its], moms = [lab[0], lab[1], ...vs.map(v => boostN(v, nb))];
+  const S = nucBegin([]), x = (o.x + b.x) / 2, y = (o.y + b.y) / 2;
+  o.dead = true; b.dead = true;
+  const keepTag = _evTag, keepRoot = _evRoot; _evTag = o.ev; _evRoot = o.root || o.ev;
+  const made = spawnItems(items, moms, x, y, z);
+  _evTag = keepTag; _evRoot = keepRoot;
+  closeEvent(S, made, x, y, o.KE + b.KE + (o.m + b.m) * MEV, (o.m + b.m) * MEV);
+  W.count.decay += 2;
+  const txt = `LQ + L̄Q → e⁻ u + e⁺ ū: two electrons and two jets, ${its.length} hadrons`;
+  o.fate = b.fate = `decayed: ${txt}`;
+  flash(x, y, XP.LQ.col, 5, 0.6, z);
+  tally(items, [], `Decay: ${txt}`);
+  nucEvent('pdecay', x, y, `Decay: ${txt}`, [{ x, y, k: 'x', rd: 0.12, lbl: 'LQ' }], `a leptoquark pair (hypothetical), ${fmtNum(o.m / 1e6, 2)} TeV each: each turns into a lepton and a quark; the quarks become two sprays of hadrons together`, undefined, z);
   log('nuc', `Decay: ${txt}`);
 }
 function hypoKept(o) { return !o.xb && W.wall !== 'open' && !!XP[o.sp].hypo; }
@@ -39507,7 +39550,7 @@ const PCATS = [
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
   ['Exotic', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs', 'LL6He', 'ahy1_2'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
-  ['Hypothetical', ['wimp', 'neut', 'axion', 'nuS', 'HNL', 'slet', 'mono', 'Sx', 'Sxb', 'G2370', 'Rg', 'Ap', 'Zp', 'mCP', 'BH'].map(sp => ({ kind: 'exo', sp }))], // (1.39, item 103: not found; their numbers are the experiments' limits or a model's)
+  ['Hypothetical', ['wimp', 'neut', 'axion', 'nuS', 'HNL', 'slet', 'mono', 'Sx', 'Sxb', 'G2370', 'Rg', 'Ap', 'Zp', 'LQ', 'mCP', 'BH'].map(sp => ({ kind: 'exo', sp }))], // (1.39, item 103: not found; their numbers are the experiments' limits or a model's)
 ];
 /* Type-to-find: every particle of the menus, matched on its symbol, its name, its id and the spelled-out Greek. */
 const PF_GREEK = [['lambda', 'Λ'], ['sigma', 'Σ'], ['xi', 'Ξ'], ['omega', 'Ω'], ['delta', 'Δ'], ['pion', 'π'], ['pi', 'π'], ['rho', 'ρ'], ['phi', 'φ'], ['eta', 'η'], ['kaon', 'K'], ['muon', 'μ'], ['mu', 'μ'], ['tau', 'τ'], ['nu', 'ν'], ['neutrino', 'ν'], ['gamma', 'γ'], ['photon', 'γ'], ['alpha', 'α'], ['anti', '̄'], ['bar', '̄']];
@@ -41153,6 +41196,8 @@ function qNoteMany() {
   return `A ${kind}: ${list}; charges add to ${cs}. The colours add to colourless, as in every hadron. ${how}`;
 }
 const FUND_NOTE = {
+  LQ: 'Nothing: a leptoquark would be fundamental, a carrier of a force joining quarks and leptons. It has colour like a quark, so it never flies alone: here it comes with its antiparticle. Hypothetical.',
+  LQb: 'Nothing: the anti-leptoquark would be fundamental. Hypothetical.',
   nuS: 'Nothing: a sterile neutrino would be fundamental, a fourth neutrino that feels no force but gravity. Hypothetical.',
   HNL: 'Nothing: a heavy neutral lepton would be fundamental, a lepton like the neutrino, much heavier. Hypothetical.',
   neut: 'Nothing: the neutralino would be fundamental, a mix of the supersymmetric partners of the photon, Z and Higgs. Hypothetical.',
@@ -41286,7 +41331,7 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { nuS: 'Sterile neutrino (hypothetical dark matter)', HNL: 'Heavy neutral lepton (hypothetical)', G2370: 'Glueball candidate η(2370) (hypothetical as a glueball)', Rg: 'Gluino R-hadron (hypothetical)', Rgb: 'Anti-R-hadron (hypothetical)', neut: 'Neutralino (hypothetical dark matter)', Zp: 'Z′ boson (hypothetical)', mCP: 'Millicharged particle (hypothetical)', mCPb: 'Millicharged antiparticle (hypothetical)', BH: 'Microscopic black hole (hypothetical)',
+const XP_NAME = { LQ: 'Leptoquark (hypothetical; made with its antiparticle)', LQb: 'Anti-leptoquark (hypothetical)', nuS: 'Sterile neutrino (hypothetical dark matter)', HNL: 'Heavy neutral lepton (hypothetical)', G2370: 'Glueball candidate η(2370) (hypothetical as a glueball)', Rg: 'Gluino R-hadron (hypothetical)', Rgb: 'Anti-R-hadron (hypothetical)', neut: 'Neutralino (hypothetical dark matter)', Zp: 'Z′ boson (hypothetical)', mCP: 'Millicharged particle (hypothetical)', mCPb: 'Millicharged antiparticle (hypothetical)', BH: 'Microscopic black hole (hypothetical)',
   X3872: 'X(3872): a charm tetraquark', Tcc: 'Tcc(3875)⁺: a double-charm tetraquark', Tccb: 'Anti-Tcc(3875)⁻', LL6He: 'Double-Λ hypernucleus ⁶ΛΛHe', ahy1_2: 'Antihyperhydrogen-4',
   wimp: 'WIMP (hypothetical dark matter)', axion: 'Axion (hypothetical dark matter)', slet: 'Strangelet (hypothetical strange matter)', mono: 'Magnetic monopole (hypothetical)', Sx: 'Sexaquark (hypothetical dark matter)', Sxb: 'Antisexaquark (hypothetical)', Ap: 'Dark photon X17 (hypothetical)',
   Pc4312: 'Pentaquark Pc(4312)⁺', Pc4440: 'Pentaquark Pc(4440)⁺', Pc4457: 'Pentaquark Pc(4457)⁺', Pcs4338: 'Strange pentaquark Pcs(4338)⁰', Pcb4312: 'Antipentaquark P̄c(4312)⁻', Pcb4440: 'Antipentaquark P̄c(4440)⁻', Pcb4457: 'Antipentaquark P̄c(4457)⁻', Pcsb4338: 'Antipentaquark P̄cs(4338)⁰', dstar: 'Hexaquark candidate d*(2380)', Pn: 'Protonium (a proton and an antiproton going round each other)', eaq: 'Hydrated electron (an electron held by the water round it)', pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
@@ -41303,6 +41348,8 @@ const XP_QUARKS = { X3872: 'c c̄ u ū (four quarks: a D⁰ and a D̄*⁰ barely
   'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄',
   'Lc+': 'u d c', 'Lcb-': 'ū d̄ c̄', Bs0: 's b̄', Bsb0: 'b s̄', Lb0: 'u d b', Lbb0: 'ū d̄ b̄', Jpsi: 'c c̄', Ups: 'b b̄' }; // (Realistic particles 5, 1.27)
 const XP_ABOUT = {
+  LQ: 'A boson that would turn quarks into leptons, as unified theories want. Its charge is a third (−⅓: it decays to an electron and an up quark) and it carries colour, so it is made with its antiparticle, and the two decay together. Leptoquarks were the favourite answer to odd B-meson decays until LHCb remeasured them in 2022 and found the Standard Model.',
+  LQb: 'The leptoquark’s antiparticle: it decays to a positron and an up antiquark.',
   nuS: 'A neutrino that feels no force but gravity, mixing slightly with the others. At 7.1 keV it could be dark matter, decaying (very rarely) to a neutrino and a 3.55 keV X-ray: a line once claimed in galaxy clusters, not seen by XRISM in 2025. The lighter, eV kind was all but ruled out in 2025 (MicroBooNE, KATRIN).',
   HNL: 'A heavy relative of the sterile neutrino. Partners like it would explain why neutrinos are so light (the seesaw); if it is its own antiparticle it decays to e⁻π⁺ and e⁺π⁻ alike, breaking lepton number.',
   G2370: 'A particle made of gluons alone, as the theory of the strong force predicts. BESIII found in 2024 that the η(2370) has a glueball’s mass and spin; whether it is one is not settled.',
@@ -41361,7 +41408,7 @@ function selXHTML() {
     const d = XP[o.sp], m = d.res && o.m > 0 ? o.m : d.m; // (a resonance: its own mass, drawn from its width, 1.27)
     title = XP_NAME[o.sp] || (d.hyp ? hypName(o.sp) : o.lab); sym = d.sym || o.lab; // (d.sym: a short symbol where the label is long, the pentaquarks', 1.28.3) col = `rgb(${d.col.join(',')})`;
     const beta = o.v / PHYS.C, life = d.tau * o.gam, path = beta * o.gam * 299792458 * d.tau;
-    kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', fmtMassMeV(m, 4)]);
+    kv.push(['Charge', fmtQ(d.q)], ['Rest mass', fmtMassMeV(m, 4)]);
     if (m < 2000) kv.push(['In electron masses', fmtNum(m / 0.51099895, 4)]); // (1.39.2: its own row, and only where it helps)
     if (d.res && m !== d.m) kv.push(['Table mass', fmtMassMeV(d.m, 5)], ['Width Γ', fmtMassMeV(d.w, 3).replace('/c²', '')]); // ("Rest mass": this one's, drawn from its width)
     if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
@@ -41436,6 +41483,7 @@ function pinToggle(p) { const i = PINS.indexOf(p); if (i >= 0) PINS.splice(i, 1)
    clean them up a bit") A card's rows: a short value on the right, as before; a long one (over 26 characters) on its
    own full-width line under its name, in the reading font, left-aligned; a list ("a; b; c": decays, isotopes) one item
    a line, its share on the right. */
+function fmtQ(q) { const t = Math.round(q * 3); const f = Math.abs(q * 3 - t) < 1e-9 && t % 3 ? (Math.abs(t) === 1 ? '⅓' : Math.abs(t) === 2 ? '⅔' : `${Math.abs(t)}/3`) : String(Math.abs(q)); return q > 0 ? '+' + f : q < 0 ? '−' + f : '0'; } // (a leptoquark's −⅓, 1.39.2)
 function kvHTML(kv) {
   return `<dl class="kv">${kv.filter(Boolean).map(([k, v]) => { // (a null row: none, as a stable particle's decays)
     const t = String(v);
@@ -41879,7 +41927,7 @@ function renderData() {
    its name, half-life and decay, how many, and the event that first made it; then the unstable particles. */
 const PART_NAMES = { 'pi+': 'charged pion', 'pi-': 'charged pion', pi0: 'neutral pion', 'mu-': 'muon', 'mu+': 'antimuon', 'K+': 'charged kaon', 'K-': 'charged kaon',
   K0S: 'neutral kaon (short-lived)', K0L: 'neutral kaon (long-lived)', eta: 'eta meson', Lam: 'lambda baryon', Lamb: 'antilambda', 'tau-': 'tau lepton', 'tau+': 'antitau',
-  'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega', 'W+': 'W boson', 'W-': 'W boson', Z0: 'Z boson', H0: 'Higgs boson', nuS: 'sterile neutrino', HNL: 'heavy neutral lepton', G2370: 'glueball', Rg: 'R-hadron', Rgb: 'R-hadron', neut: 'neutralino', Zp: 'Z prime', mCP: 'millicharged', mCPb: 'millicharged', BH: 'black hole', X3872: 'X(3872) tetraquark', Tcc: 'Tcc tetraquark', Tccb: 'Tcc tetraquark', LL6He: 'double hypernucleus', ahy1_2: 'antihyperhydrogen-4', wimp: 'WIMP', axion: 'axion', slet: 'strangelet', mono: 'magnetic monopole', Sx: 'sexaquark', Sxb: 'antisexaquark', Ap: 'dark photon' }; // (W, Z: 1.27; H0: feature 25; 1.39)
+  'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega', 'W+': 'W boson', 'W-': 'W boson', Z0: 'Z boson', H0: 'Higgs boson', LQ: 'leptoquark', LQb: 'leptoquark', nuS: 'sterile neutrino', HNL: 'heavy neutral lepton', G2370: 'glueball', Rg: 'R-hadron', Rgb: 'R-hadron', neut: 'neutralino', Zp: 'Z prime', mCP: 'millicharged', mCPb: 'millicharged', BH: 'black hole', X3872: 'X(3872) tetraquark', Tcc: 'Tcc tetraquark', Tccb: 'Tcc tetraquark', LL6He: 'double hypernucleus', ahy1_2: 'antihyperhydrogen-4', wimp: 'WIMP', axion: 'axion', slet: 'strangelet', mono: 'magnetic monopole', Sx: 'sexaquark', Sxb: 'antisexaquark', Ap: 'dark photon' }; // (W, Z: 1.27; H0: feature 25; 1.39)
 function renderMade() {
   const M = W.made, sec = $('dMadeSec');
   const nuc = M ? [...M.nuc.values()] : [], part = (M ? [...(M.lep ? M.lep.values() : []), ...M.part.values()] : []), nus = M && M.nu ? [...M.nu.values()] : [];
