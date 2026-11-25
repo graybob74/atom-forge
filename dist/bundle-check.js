@@ -39491,17 +39491,50 @@ function pmFit(m) {
   let w = 0; for (const b of m.querySelectorAll('.pm-i:not(.more) b')) w = Math.max(w, b.scrollWidth);
   if (w > 0) m.style.setProperty('--pmw', Math.ceil(w + 1) + 'px');
 }
-function pmenuOpen(ci, btn) {
-  const m = $('pmenu'), [name, list] = pcats()[ci];
-  if (!m.hidden && m.dataset.ci === String(ci)) { pmenuClose(); return; }
-  m.dataset.ci = String(ci);
-  m.innerHTML = `<div class="pm-h">${esc(name)}</div>` + list.map((sp, k) => sp === 'pt'
-    ? `<button class="pm-i more" data-k="pt">Any nucleus, any isotope… <span>Elements</span></button>`
-    : `<button class="pm-i" data-k="${k}" aria-pressed="${sameSpec(sp, UI.spec)}"><span class="sw" style="background:${specColor(sp)}"></span><b>${esc(specLabel(sp))}</b><span>${esc(specName(sp))}</span></button>`).join('');
+/* (1.39.1 item 107; the owner: "compacting these a bit more, maybe combining a few or putting these dropdowns under other
+   more general dropdowns", then "keep bosons and light separate") Six menus on the bar instead of thirteen, the old
+   menus in them: a short one shows its groups one under another, headed; a long one (Hadrons, Nuclei) lists its groups
+   first, each opening its own list, with a way back. */
+const PBAR = [['Leptons', ['Leptons', 'Neutrinos']], ['Hadrons', ['Nucleons', 'Mesons', 'Baryons', 'Resonances', 'Multiquarks']], ['Nuclei', ['Light nuclei', 'Exotic']], ['Bosons', ['Bosons']], ['Light', ['Light']], ['Antimatter & hypothetical', ['Antimatter', 'Hypothetical']]];
+const CAT_TITLE = { Exotic: 'Exotic atoms and nuclei' };
+function catTitle(n) { return CAT_TITLE[n] || n; }
+function pbars() { const cs = pcats(); return PBAR.map(([n, subs]) => [n, subs.map(x => cs.findIndex(c => c[0] === x)).filter(i => i >= 0)]).filter(([, l]) => l.length); }
+function pmenuOpenBar(bi, btn) {
+  const m = $('pmenu'), bar = pbars()[bi]; if (!bar) return;
+  const [name, cis] = bar, cs = pcats(), key = 'b' + bi;
+  if (!m.hidden && m.dataset.bar === key) { pmenuClose(); return; }
+  const n = cis.reduce((a, ci) => a + cs[ci][1].length, 0);
+  if (cis.length === 1 || n <= 16) { pmenuList(cis.length === 1 ? [[name, cs[cis[0]][1]]] : cis.map(ci => [catTitle(cs[ci][0]), cs[ci][1]]), btn, key); return; }
+  m.dataset.ci = key; m.dataset.bar = key;
+  m.innerHTML = `<div class="pm-h">${esc(name)}</div>` + cis.map(ci => `<button class="pm-i more" data-sub="${ci}">${esc(catTitle(cs[ci][0]))} <span>${cs[ci][1].filter(x => x !== 'pt').length} ›</span></button>`).join('');
+  pmenuPlace(m, btn);
+  m.onclick = (e) => { const b = e.target.closest('[data-sub]'); if (!b) return; const ci = +b.dataset.sub; pmenuList([[catTitle(cs[ci][0]), cs[ci][1]]], btn, key, null, () => { m.dataset.bar = ''; pmenuOpenBar(bi, btn); }, name); };
+  m.oncontextmenu = null;
+}
+function pmenuPlace(m, btn) {
   const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
   m.hidden = false; pmFit(m); m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - m.offsetWidth - 4)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
   for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', String(b === btn));
-  m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b) return; pmenuClose(); if (b.dataset.k === 'pt') { openPT(); return; } selectSpec(list[+b.dataset.k]); };
+}
+function pmenuOpen(ci, btn) { // (one of the old menus by itself: the bar's lists, and the tests)
+  const m = $('pmenu'), [name, list] = pcats()[ci];
+  if (!m.hidden && m.dataset.ci === String(ci)) { pmenuClose(); return; }
+  pmenuList([[catTitle(name), list]], btn, String(ci));
+}
+/* A menu of particles in headed groups (secs: [[title, list]]); back: a "‹ name" row first, back to the menu of groups. */
+function pmenuList(secs, btn, key, single, back, backName) {
+  const m = $('pmenu'), list = [];
+  m.dataset.ci = key; m.dataset.bar = key.startsWith('b') ? key : '';
+  let html = back ? `<button class="pm-i more pm-back" data-back="1">‹ ${esc(backName || 'Back')}</button>` : '';
+  for (const [title, l] of secs) {
+    html += `<div class="pm-h">${esc(single || title)}</div>` + l.map((sp) => { const k = list.length; list.push(sp); return sp === 'pt'
+    ? `<button class="pm-i more" data-k="pt">Any nucleus, any isotope… <span>Elements</span></button>`
+    : `<button class="pm-i" data-k="${k}" aria-pressed="${sameSpec(sp, UI.spec)}"><span class="sw" style="background:${specColor(sp)}"></span><b>${esc(specLabel(sp))}</b><span>${esc(specName(sp))}</span></button>`; }).join('');
+    single = null;
+  }
+  m.innerHTML = html;
+  pmenuPlace(m, btn); m.scrollTop = 0;
+  m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b) return; if (b.dataset.back) { back(); return; } pmenuClose(); if (b.dataset.k === 'pt') { openPT(); return; } selectSpec(list[+b.dataset.k]); };
   m.oncontextmenu = (e) => { const b = e.target.closest('.pm-i'); if (!b || b.dataset.k === 'pt') return; chipCard(e, list[+b.dataset.k]); };
 }
 function pmenuClose() { const m = $('pmenu'); if (m) m.hidden = true; for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', 'false'); }
@@ -39509,7 +39542,7 @@ function buildPalette() {
   const pal = $('palette');
   const items = W.d3 ? QUICK.filter((q, i, a) => q === 'sep' ? i > 0 && a[i - 1] !== 'sep' && spec3dOK(a[i - 1].spec) : spec3dOK(q.spec)) : QUICK.slice(); // (3-D: what works there)
   if (UI.customSpec && !QUICK.some(q => q !== 'sep' && sameSpec(q.spec, UI.customSpec)) && (!W.d3 || spec3dOK(UI.customSpec))) items.push('sep', { spec: UI.customSpec });
-  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Search for a particle by typing: pi-, lambda, muonium, deuteron … (/)">Search…</button>` + pcats().map(([name, list], ci) => `<button class="chip cat" data-ci="${ci}" aria-haspopup="menu" aria-expanded="false" title="${esc(name)}: ${esc(list.filter(x => x !== 'pt').map(specLabel).join(' '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
+  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Search for a particle by typing: pi-, lambda, muonium, deuteron … (/)">Search…</button>` + pbars().map(([name, cis], bi) => `<button class="chip cat" data-bi="${bi}" aria-haspopup="menu" aria-expanded="false" title="${esc(cis.map(ci => catTitle(pcats()[ci][0])).join(', '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
   items.forEach((q, i) => {
     if (q === 'sep') { html += '<span class="sep" aria-hidden="true"></span>'; return; }
     const s = q.spec, col = q.color || specColor(s), lab = q.label || specLabel(s);
@@ -39519,7 +39552,7 @@ function buildPalette() {
   placeHint();
   pal.onclick = (e) => {
     const fb = e.target.closest('[data-find]'); if (fb) { pfindOpen(fb); return; }
-    const c = e.target.closest('.cat'); if (c) { pmenuOpen(+c.dataset.ci, c); return; }
+    const c = e.target.closest('.cat'); if (c) { pmenuOpenBar(+c.dataset.bi, c); return; } // (1.39.1 item 107: six menus, the old ones in them)
     const b = e.target.closest('.chip'); if (!b) return;
     const q = items[+b.dataset.i]; if (q && q !== 'sep') selectSpec(q.spec);
   };
@@ -39922,7 +39955,7 @@ function renderPTDetail() {
   $('pdetail').innerHTML = `
     <div class="facts">
       <span><b>${esc(anti ? antiName(s.Z) : el.name)}</b> (${CAT_NAMES[el.cat] || ''}${anti ? ', antimatter' : ''})</span>
-      <span>${anti ? 'antiprotons' : 'Z'} <b>${s.Z}</b></span><span>mass <b>${el.mass}</b> u</span>
+      <span>${anti ? 'antiprotons' : 'Z'} <b>${s.Z}</b></span><span>mass <b>${esc(fmtMassU(el.mass, 5))}</b></span>
       <span>electronegativity <b>${el.en ? el.en.toFixed(2) : '—'}</b></span>
       <span>1st ionization <b>${el.ie1 ? el.ie1.toFixed(2) + ' eV' : '—'}</b></span>
       <span>melts <b>${el.tm ? fmtT(el.tm) : '—'}</b></span>
@@ -40248,7 +40281,7 @@ function onDown(e) {
       break;
     }
     case 'grab': {
-      const lx = pickAt(px, py, 10) ? null : pickLight(px, py, 16), xo = lx && lx.kind === 'exo' && !lx.o.xb && !lx.o.dead ? lx.o : null; // (an unstable particle or exotic atom under the pointer: held too, 1.28.1)
+      const gc = pickCycled(px, py), lx = gc && gc.x, xo = lx && lx.kind === 'exo' && !lx.o.xb && !lx.o.dead ? lx.o : null; // (1.39.1: what is on top, or the next one down on a click again) // (an unstable particle or exotic atom under the pointer: held too, 1.28.1)
       if (xo) {
         undoMark('Grab');
         W.grab = { exo: xo, x: wx, y: wy, s: OPT.grab.s, hist: [] };
@@ -40312,14 +40345,14 @@ function onDown(e) {
     case 'measure': {
       // any particle: atoms, nuclei, nucleons, electrons (W.parts), unstable particles (W.exo) and photons and neutrinos
       // in flight (followed through a live stand-in, as they are drawn along their path)
-      const lt = pickAt(px, py, 10) ? null : pickLight(px, py, 14);
-      const p = lt ? (lt.kind === 'exo' ? lt.o : measurePt(lt.kind, lt.o)) : pickNear(px, py, 24), m = R.measure || (R.measure = []);
+      const mc = pickCycled(px, py), lt = mc && mc.x; // (1.39.1)
+      const p = lt ? (lt.kind === 'exo' ? lt.o : measurePt(lt.kind, lt.o)) : mc ? mc.p : pickNear(px, py, 24), m = R.measure || (R.measure = []);
       if (!p) m.length = 0; else { if (m.length >= 3) m.length = 0; if (!m.some(q => q === p || (q._o && q._o === p._o))) m.push(p); }
       UI.drag = { kind: 'none' }; buildToolOpts();
       break;
     }
     case 'inspect': {
-      const p = pickAt(px, py, 10), x = p ? null : pickLight(px, py, 12);
+      const c = pickCycled(px, py), p = c && c.p, x = c && c.x; // (click again: the next one under it, 1.39.1)
       R.sel = p || null; R.selX = x ? { kind: x.kind, o: x.o, t0: W.rt } : null;
       if (p || x) showTab('inspect', true);
       renderInspect();
@@ -40327,7 +40360,7 @@ function onDown(e) {
       break;
     }
     case 'select': {
-      const lx = pickAt(px, py, 8) ? null : pickLight(px, py, 10), p = pickAt(px, py, 8) || (lx && lx.kind === 'exo' && selectableX(lx.o) ? lx.o : null); // (muonic hydrogen and the other exotic atoms in W.exo too, 1.26)
+      const sc = pickCycled(px, py), lx = sc && sc.x, p = sc && sc.p ? sc.p : lx && lx.kind === 'exo' && selectableX(lx.o) ? lx.o : null; // (1.39.1: click again for the next one under it) // (muonic hydrogen and the other exotic atoms in W.exo too, 1.26)
       if (((p && R.msel.has(p)) || (!p && R.oSel.size && R.oSel.has(objAtPx(px, py)))) && !e.shiftKey) { undoMark('Move the selection'); UI.drag = { kind: 'selmove', lx: wx, ly: wy, lz: wz, moved: false, plane }; } // on the selection (a particle or an object in it): drag moves it (Ctrl+Z takes it back: 1.26 sweep, it could not be undone)
       else UI.drag = { kind: 'selbox', x0: wx, y0: wy, x1: wx, y1: wy, px, py, px1: px, py1: py, add: e.shiftKey, hit: p };
       break;
@@ -40487,6 +40520,47 @@ function grabGroup(p) {
     }
   }
   return out;
+}
+/* (1.39.1 item 109; the owner: "if there's something on another layer you can click it multiple times to access it. for
+   example i can't click this jpsi") Everything under the pointer, top first: an unstable particle or a photon drawn within
+   9 px (small, drawn over the atoms: the J/ψ over two nuclei lost to them, as atoms were looked for first), then atoms,
+   nuclei and electrons (3-D: nearest the camera first), then particles and light a little further off. Each entry
+   { p } (W.parts) or { x: { kind, o } } (W.exo, flights, rays). pickCycled: a click again on the same spot, soon, takes the
+   next one down, round and round, and says "2 of 3". */
+function pickStack(px, py, onlyParts) {
+  const lt = [], ps = [];
+  if (W.d3) {
+    cam3Update(); const P = [0, 0, 0];
+    if (!onlyParts) { const near = (o, kind) => { const h = lightHead3(o, kind); if (!h || !proj3(h[0], h[1], h[2], P)) return; const d = Math.hypot(P[0] - px, P[1] - py); if (d < 14) lt.push({ d, x: { kind, o } }); };
+      for (const o of W.exo) if (!o.dead && !o.xb) near(o, 'exo'); for (const f of W.flights) near(f, 'flight'); for (const r of W.rays) if (!r.landed) near(r, 'ray'); }
+    for (const p of W.parts) {
+      if (p.dead || !proj3(p.x, p.y, p.z, P)) continue;
+      const sc = C3.F / P[2], r = p.k === NUC ? Math.max(p.Z === 0 ? 2.2 : 2.4, Math.max(rd3(p), 0.2) * sc) : Math.max(1.8, 0.15 * sc), d = Math.hypot(P[0] - px, P[1] - py);
+      if (d <= r + 4) ps.push({ d: P[2], p });
+    }
+  } else {
+    const [wx, wy] = s2w(px, py);
+    if (!onlyParts) { const near = (o, kind) => { const h = lightHead(o, kind); if (!h) return; const d = Math.hypot((h[0] - wx) * R.s, (h[1] - wy) * R.s); if (d < 14) lt.push({ d, x: { kind, o } }); };
+      for (const o of W.exo) if (!o.dead && !o.xb) near(o, 'exo'); for (const f of W.flights) near(f, 'flight'); for (const r of W.rays) if (!r.landed) near(r, 'ray'); }
+    for (const p of W.parts) {
+      if (p.dead) continue;
+      const rr = (p.k === NUC ? Math.max(p.rd, 0.2) : 0.15) * R.s + 10, d = Math.hypot((p.x - wx) * R.s, (p.y - wy) * R.s);
+      if (d < rr) ps.push({ d, p });
+    }
+  }
+  const by = (a, b) => a.d - b.d; lt.sort(by); ps.sort(by);
+  return [...lt.filter(c => c.d < 9), ...ps, ...lt.filter(c => c.d >= 9)].map(c => c.p ? { p: c.p } : { x: c.x });
+}
+const PICKC = { px: -99, py: -99, t: 0, o: null };
+function pickCycled(px, py, onlyParts) {
+  const st = pickStack(px, py, onlyParts), now = performance.now();
+  if (!st.length) { PICKC.o = null; return null; }
+  const obj = (c) => c.p || c.x.o;
+  let i = 0;
+  if (PICKC.o && Math.hypot(PICKC.px - px, PICKC.py - py) < 6 && now - PICKC.t < 6000) { const k = st.findIndex(c => obj(c) === PICKC.o); if (k >= 0) i = (k + 1) % st.length; }
+  Object.assign(PICKC, { px, py, t: now, o: obj(st[i]) });
+  if (st.length > 1) { const tip = $('tip'); if (tip) { tip.innerHTML = `<div class="t2">${i + 1} of ${st.length} here: click again for the next</div>`; tip.hidden = false; tip.style.left = Math.max(4, Math.min(px + 14, R.w - tip.offsetWidth - 6)) + 'px'; tip.style.top = Math.max(4, py - 30) + 'px'; PICKC.tipT = now; } }
+  return st[i];
 }
 function pickNear(px, py, maxPx) {
   if (W.d3) return pick3(px, py, maxPx);
@@ -40826,6 +40900,7 @@ function perp3(ux, uy, uz) {
 }
 /* ------------------------------------------------------------------ hover tooltip */
 function updateHover(px, py) {
+  if (PICKC.tipT && performance.now() - PICKC.tipT < 1500 && Math.hypot(px - PICKC.px, py - PICKC.py) < 8) return; // (the "2 of 3" note stays a moment, 1.39.1)
   const p = pickAt(px, py, 6);
   R.hover = p;
   const tip = $('tip');
@@ -41172,7 +41247,7 @@ function selXHTML() {
     const d = XP[o.sp], m = d.res && o.m > 0 ? o.m : d.m; // (a resonance: its own mass, drawn from its width, 1.27)
     title = XP_NAME[o.sp] || (d.hyp ? hypName(o.sp) : o.lab); sym = d.sym || o.lab; // (d.sym: a short symbol where the label is long, the pentaquarks', 1.28.3) col = `rgb(${d.col.join(',')})`;
     const beta = o.v / PHYS.C, life = d.tau * o.gam, path = beta * o.gam * 299792458 * d.tau;
-    kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', `${fmtNum(m, 4)} MeV/c² (${fmtNum(m / 0.51099895, 4)} electron masses)${d.res && m !== d.m ? `: its own, drawn from its width (Γ ${fmtNum(d.w, 3)} MeV) about the table's ${fmtNum(d.m, 5)}` : ''}`]);
+    kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', `${fmtMassMeV(m, 4)} (${fmtNum(m / 0.51099895, 4)} electron masses)${d.res && m !== d.m ? `: its own, drawn from its width (Γ ${fmtNum(d.w, 3)} MeV) about the table's ${fmtNum(d.m, 5)}` : ''}`]);
     if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
     if (d.hyp) kv.push(['Made of', `${nucSym(d.Z, d.N)} (${d.Z} p, ${d.N} n) and a Λ (u d s)`], ['Λ bound by', fmtE(d.BL * MEV)]);
     kv.push(...gyroRows(d.q, m / PHYS.AMU_MEV, o.gam, o.v, o.x, o.y, null));
@@ -41305,7 +41380,7 @@ function inspectBuild(box, p, pinned) {
     if (p.k === POS) extra = `<p class="note">Meeting an electron, it annihilates into two 511 keV gamma rays. An antiproton captures it to make antihydrogen.</p>`;
   } else if (p.Z === 0) {
     head = `<div class="ins-head"><div class="tilebox"><span class="z">0</span><span class="a">1</span><span class="s">n</span><span class="q">neutral</span></div>
-      <div><div class="ins-title">Neutron</div><div class="ins-sub">Baryon · udd quarks · 939.6 MeV/c²</div></div></div>`;
+      <div><div class="ins-title">Neutron</div><div class="ins-sub">Baryon · udd quarks · ${massText('939.6 MeV/c²')}</div></div></div>`;
     pills = `<span class="pill hot">t½ 10.2 min (β⁻ → p + e⁻ + ν̄)</span>`;
     kv.push(['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)], ['Kind', ke < 1 ? 'thermal (slow)' : ke < 1e5 ? 'epithermal' : 'fast']);
     if (RP.nuc) kv.push(...nucSpinRows(p)); // (Realistic particles 6, 1.27)
@@ -41349,7 +41424,7 @@ function inspectBuild(box, p, pinned) {
       if (el.en) kv.push(['Electronegativity', el.en.toFixed(2)]);
       if (el.ea) kv.push([p.anti ? 'Positron affinity' : 'Electron affinity', fmtE(el.ea)]);
     } else kv.push(['Charge', (p.anti ? '−' : '+') + p.Z]);
-    kv.push(['Mass', fmtNum(p.m, 6) + ' u'], ['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)]);
+    kv.push(['Mass', fmtMassU(p.m, 6)], ['Kinetic energy', fmtE(ke)], ['Speed', fmtSpeed(speed)]);
     kv.push(...gyroRows(p.ne > 0 ? p.q : (p.anti ? -1 : 1) * p.Z, p.m, p.rad ? 1 + p.KE / (p.m * PHYS.AMU_MEV * 1e6) : 1, speed, p.x, p.y, p));
     if (p.tLocal && p.ne > 0) kv.push(['Local temperature', fmtT(p.tLocal)]);
     if (p.mu && p.spin && RP.mu) kv.push(...muSpinRows(muSpinInfo(p))); // (μSR, 1.27)
@@ -44968,6 +45043,15 @@ function tourInit() {
 
 /* ------------------------------------------------------------------ lengths, undo, autosave, menus */
 let L_UNIT = 'A'; // Settings → General: lengths in Å, nm or pm (fmtA)
+/* (1.39.1 item 106; the owner: "add an option change what mass is (amu or mev/c^2)") Masses in u, in MeV/c² (GeV/c²,
+   TeV/c² when large), or as each fits (u for atoms and nuclei, MeV/c² for particles: as before). 1 u = 931.494 MeV/c². */
+let M_UNIT = 'auto';
+function fmtMassMeV(m, d = 4) {
+  if (M_UNIT === 'u') return fmtNum(m / PHYS.AMU_MEV, Math.max(d, 6)) + ' u';
+  const a = Math.abs(m); return a >= 1e7 ? fmtNum(m / 1e6, d) + ' TeV/c²' : a >= 1e4 ? fmtNum(m / 1e3, d) + ' GeV/c²' : fmtNum(m, d) + ' MeV/c²';
+}
+function fmtMassU(u, d = 6) { return M_UNIT === 'MeV' ? fmtMassMeV(u * PHYS.AMU_MEV, d) : fmtNum(u, d) + ' u'; }
+function massText(t) { return M_UNIT === 'u' ? String(t).replace(/(\d[\d,.]*) MeV\/c²/g, (w, n) => fmtMassMeV(+n.replace(/,/g, ''), 4)) : t; } // (the cards' written masses)
 function fmtA(a, digits) { const [f, u] = L_UNIT === 'nm' ? [0.1, ' nm'] : L_UNIT === 'pm' ? [100, ' pm'] : [1, ' Å'], v = a * f; return (digits === undefined ? (Math.abs(v) >= 100 ? fmtNum(v, 4) : v.toPrecision(3)) : v.toFixed(digits)) + u; }
 function syncNWall() {
   $('nWallRow').hidden = W.wall !== 'reflect'; setSegValue('segNWall', W.nWall || 'reflect');
@@ -45675,10 +45759,10 @@ function toolKey(t) { return W.d3 && t.key3 ? t.key3 : t.key; }
 /* ------------------------------------------------------------------ settings
    Kept in this browser. (Performance mode, which set the particle limit, resolution and glows together, is gone, 1.23.2:
    the owner found it obsolete; the settings it set stay, each on its own, and a stored prePerf or perf is ignored.) */
-const SET_DEF = { wave: 0, bo: 0, pi: 0, piRpc: 1, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
+const SET_DEF = { wave: 0, bo: 0, pi: 0, piRpc: 1, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', munit: 'auto', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', caps: 'on', lightSlow: false, flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250,
   fov3: 40, proj3: 'persp', fog3: 'normal', box3: 'grid', axes3: true, dist3: true, lbl3: 'front', orbit3: 1, orbitInv: false, spin3: 0 }; // (the last row: Settings → 3-D, display and camera only)
-const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
+const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], munit: ['auto', 'u', 'MeV'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
@@ -45846,7 +45930,7 @@ function applySettings() {
   if (R.cvd !== SET.cvd) { R.cvd = SET.cvd; elColorsReset(); }
   const rs = document.documentElement.style; rs.setProperty('--ui', String(SET.ui)); rs.setProperty('--pw', clamp(Math.round(SET.pw) || 356, 280, 760) + 'px');
   document.body.classList.toggle('panel-left', SET.side === 'left');
-  E_UNIT = SET.eunit; L_UNIT = SET.lunit;
+  E_UNIT = SET.eunit; L_UNIT = SET.lunit; M_UNIT = SET.munit;
   Object.assign(V3, { fov: SET.fov3, ortho: SET.proj3 === 'ortho', fog: FOG3[SET.fog3], box: SET.box3, axes: !!SET.axes3, lbl: SET.lbl3 }); // (Settings → 3-D: view3d.js)
 }
 /* What the threads row says: whether this page can use workers at all, and how many are in use. */
@@ -46112,7 +46196,7 @@ function syncSettings() {
   $('setFlash').checked = SET.flashLow; $('setCvd').checked = SET.cvd; setSegValue('segUi', SET.ui); setSegValue('segSide', SET.side); $('setPw').textContent = Math.round(clamp(SET.pw, 280, 760)) + ' px';
   $('setWinNote').hidden = !tauriWin(); setSegValue('segWheel', SET.wheel); setSegValue('segZoomTo', SET.zoomTo); $('setKeepOpt').checked = SET.keepOpt; $('setStartPaused').checked = SET.startPaused; $('setPauseBlur').checked = SET.pauseBlur; $('setWake').checked = SET.wake;
   $('setRew').checked = SET.rewOn; setSegValue('segRewSpan', SET.rewSpan); setSegValue('segRewEvery', SET.rewEvery); setSegValue('segRewMem', SET.rewMem); $('setRewNote').textContent = rewNote();
-  setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit);
+  setSegValue('segStart', SET.start); $('setAutosave').checked = SET.autosave; setSegValue('segEUnit', SET.eunit); setSegValue('segLUnit', SET.lunit); setSegValue('segMUnit', SET.munit);
   setSegValue('segTheme', SET.theme); setSegValue('segTUnit', SET.tunit); syncWinSeg(); setSegValue('segCursor', SET.cursor); $('setChamber').checked = DM.on;
   $('setFx').checked = SET.effects; $('setMotion').checked = SET.motion; $('setTips').checked = SET.tips; $('setFps').checked = SET.fps; $('setSlow').checked = W.slowmo; $('setUltra').checked = SET.ultra;
   setSegValue('segDtMax', SET.dtMax); setSegValue('segRc', String(SET.rc)); setSegValue('segQeq', String(SET.qeq)); setSegValue('segPi', String(SET.pi)); setSegValue('segPiRpc', String(SET.piRpc)); setSegValue('segBo', String(SET.bo)); $('setWave').checked = !!SET.wave; $('setResBig').checked = SET.resBig; $('setInc').checked = SET.inc; syncCosts(); // (electrons as waves: a switch since 1.27.1)
@@ -46475,6 +46559,7 @@ const SDESC = {
   segTUnit: ['Temperatures in', 'Kelvin, degrees Celsius or degrees Fahrenheit, everywhere a temperature is shown.'],
   segEUnit: ['Energies in', 'Electronvolts, or kJ/mol and kcal/mol for chemistry. Energies of 1 keV and up stay in eV.'],
   segLUnit: ['Lengths in', 'Ångströms, nanometres or picometres, everywhere a length is shown.'],
+  segMUnit: ['Masses in', 'Atomic mass units (u), MeV/c², or each as it fits: u for atoms and nuclei, MeV/c² for particles.'],
   setTips: ['Setup tips', 'A short note about each setup in the chamber’s corner: what is in it and what to try.'],
   setSlow: ['Slow motion for nuclear events', 'The game slows down by itself when a nuclear event happens, so you can watch it, then speeds up again.'],
   setUltra: ['Ultra-realistic mode', 'True sizes and rates with nothing made easier to see: nuclei 1/100,000 the size of their atom, decays at their real rates. Experimental: off again each time the game starts.'],
@@ -46886,6 +46971,7 @@ function settingsInit() {
   $('setAutosave').onchange = (e) => { setSetting('autosave', e.target.checked); if (!e.target.checked) store('autosave', ''); };
   bindSeg('segEUnit', (v) => { setSetting('eunit', v); updatePanel(); });
   bindSeg('segLUnit', (v) => { setSetting('lunit', v); updatePanel(); });
+  bindSeg('segMUnit', (v) => { setSetting('munit', v); M_UNIT = v; updatePanel(); renderInspect(); }); // (1.39.1 item 106)
   bindSeg('segCursor', (v) => { setSetting('cursor', v); dmPoke(); });
   $('setChamber').onchange = (e) => setChamberOnly(e.target.checked);
   bindSeg('segTUnit', (v) => setSetting('tunit', v));
@@ -47119,7 +47205,7 @@ function specAbout(s) { // { t1, t2, rows: [[label, text]], found }
   if (s.kind === 'exo') {
     const x = XP[s.sp], con = Q_CONTENT[s.sp];
     row('Charge', x.q ? (x.q > 0 ? '+' : '−') + Math.abs(x.q) + ' e' : '0');
-    if (x.m) row('Mass', fmtNum(x.m, 4) + ' MeV/c²');
+    if (x.m) row('Mass', fmtMassMeV(x.m, 4));
     if (con) row('Quarks', quarkText(con));
     row('Lifetime', x.tau ? `mean life ${fmtTime(x.tau)}${x.res ? ` (${x.ew ? 'a boson' : 'a resonance'}, ${fmtNum(x.w, 3)} MeV wide)` : ''}` : 'stable');
     if (x.ew) row('Decays', ewDecList(s.sp).sort((a, b) => b[0] - a[0]).slice(0, 4).map(([br, t]) => `${t} (${Math.round(br * 100)}%)`).join(', ')); // (W and Z, 1.27)
@@ -47132,7 +47218,7 @@ function specAbout(s) { // { t1, t2, rows: [[label, text]], found }
     if (nuc && nuc.modes && nuc.modes.length && !nuc.stable) row('Decays', nuc.modes.map(m => `${({ a: 'α', 'b-': 'β⁻', 'b+': 'β⁺', ec: 'electron capture', sf: 'spontaneous fission', p: 'proton emission', '2p': 'two-proton emission', n: 'neutron emission', bn: 'β⁻ and a delayed neutron', '2n': 'two-neutron emission' })[m.mode] || m.mode}${m.br < 1 ? ' ' + Math.round(m.br * 100) + '%' : ''}`).join(', '));
     row('Charge', q ? (q > 0 ? '+' : '−') + Math.abs(q) + ' e' : '0 (neutral)');
     row('Electrons', s.bare ? 'none: a bare nucleus' : String(s.Z - (s.charge || 0)));
-    row('Mass', fmtNum(s.Z * PHYS.MP + N * PHYS.MN + (s.bare ? 0 : s.Z - (s.charge || 0)) * PHYS.ME - bindingE(s.Z, N) / PHYS.AMU_MEV, 5) + ' u');
+    row('Mass', fmtMassU(s.Z * PHYS.MP + N * PHYS.MN + (s.bare ? 0 : s.Z - (s.charge || 0)) * PHYS.ME - bindingE(s.Z, N) / PHYS.AMU_MEV, 5));
     if (!s.bare && el.ie1) row('Ionization', `${fmtE(el.ie1)} to take its first electron`);
     if (!s.bare && el.en) row('Electronegativity', fmtNum(el.en, 3));
     if (!s.bare && el.tm && el.tb) row('Melts, boils', `${Math.round(el.tm)} K, ${Math.round(el.tb)} K`);
@@ -47149,7 +47235,7 @@ function specAbout(s) { // { t1, t2, rows: [[label, text]], found }
     found = M.note || '';
   } else {
     const a = SPEC_ABOUT[s.kind];
-    if (a) { row('Charge', a[0]); row('Mass', a[1]); row('Lifetime', a[2]); found = a[3]; }
+    if (a) { row('Charge', a[0]); row('Mass', massText(a[1])); row('Lifetime', a[2]); found = a[3]; }
     if (s.kind === 'n' || s.kind === 'pbar' || s.kind === 'nbar') row('Quarks', quarkText(Q_CONTENT[s.kind === 'n' ? 'n' : s.kind]));
   }
   return { t1: specName(s), t2: specLabel(s), rows, found };
@@ -47183,7 +47269,7 @@ function openQuickMenu(px, py) {
   const m = $('qmenu'); if (!m) return;
   hideTip(); QM.acts = []; QM.ranges = []; QM.serial = (QM.serial || 0) + 1;
   const forced = QM.forceObj; QM.forceObj = null;
-  const [wx, wy, wz] = W.d3 ? ptr3(px, py) : s2w(px, py), p = forced ? null : pickNear(px, py, 14), mag = p || forced ? null : W.d3 ? magnetAt3(px, py) : magnetAt(wx, wy); // (3-D: the point in depth, as the tools take it)
+  const [wx, wy, wz] = W.d3 ? ptr3(px, py) : s2w(px, py), p = forced ? null : ((c) => c ? c.p : pickNear(px, py, 14))(pickCycled(px, py, true)), mag = p || forced ? null : W.d3 ? magnetAt3(px, py) : magnetAt(wx, wy); // (3-D: the point in depth, as the tools take it)
   const src = p || mag || forced ? null : W.sources.find(s => { if (s.beam) return false; const [px, py] = srcPos(s); return Math.hypot(px - wx, py - wy) < Math.max(1.5, 12 / R.s); }); // (where it is drawn: srcPos keeps it inside the box)
   const ob = forced || (p || mag || src ? null : objAtPx(px, py)), under = p ? objAtPx(px, py) : null; // (an object under the particle: reachable from its menu, 0.70)
   m.innerHTML = (p ? qmParticle(p) + (under ? qmBtn(`The ${OBJ_NAME[under.kind].toLowerCase()} under it…`, () => { QM.forceObj = under; openQuickMenu(px, py); }) : '') : mag ? qmMagnet(mag) : src ? qmSource(src) : ob ? qmObject(ob) : qmHere(wx, wy, wz || 0)) + qmGlobal(px, py, wx, wy, wz || 0);

@@ -444,6 +444,68 @@ PARTS.wrapskip = async (page, check) => { // (1.39.1: slow atoms inside a period
   }
   check(ok, `1.39.1 atoms inside a periodic box skip the walls pass and nothing changes: 400 steps with and without the skip, ${out.join('; ')}`, `1.39.1 periodic box, walls pass skipped for atoms inside: ${out.join('; ')}`);
 };
+PARTS.pick = async (page, check) => { // (1.39.1 item 109: a J/ψ over two nuclei could not be clicked)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const res = [];
+  for (const d3 of [false, true]) {
+    const at = await page.evaluate(async (d3) => {
+      loadPreset(d3 ? 'd3empty' : 'empty'); setRunning(false); setTool('inspect'); if (R.view.bohr !== 'nuc') toggleParticleView();
+      const a = addNuc(82, 126, 0, -0.3, 0, 0, 0), b = addNuc(82, 126, 0, 0.35, 0.1, 0, 0); a.vx = a.vy = b.vx = b.vy = 0;
+      const j = addExo('Jpsi', 0.05, 0.05, 0, 1, 0, XP.Jpsi.m, 0, 0); j.KE = 0; j.v = 0; j.stop = true; j.wait = true; W.decayOn = false;
+      if (!d3) { R.s = 120; R.cx = 0; R.cy = 0; } else { R.cam3.dist = 6; }
+      await new Promise(r => setTimeout(r, 200));
+      let sx, sy; if (d3) { cam3Update(); const P = [0, 0, 0]; proj3(j.x, j.y, j.z, P); sx = P[0]; sy = P[1]; } else { sx = w2sx(j.x); sy = w2sy(j.y); }
+      const r = R.cv.getBoundingClientRect(), k = r.width / R.w; window._pk = { a, b, j };
+      return { x: r.left + sx * k, y: r.top + sy * k };
+    }, d3);
+    const seq = [];
+    for (let i = 0; i < 4; i++) { await page.mouse.click(at.x, at.y); await new Promise(r => setTimeout(r, 120));
+      seq.push(await page.evaluate(() => { const { a, b, j } = window._pk; return R.selX && R.selX.o === j ? 'J/ψ' : R.sel === a ? 'Pb a' : R.sel === b ? 'Pb b' : R.sel ? 'other' : 'none'; })); }
+    const note = await page.evaluate(() => $('tip').hidden ? '' : $('tip').textContent);
+    res.push([d3 ? '3-D' : 'flat', seq, note]);
+  }
+  const ok = res.every(([, s]) => s[0] === 'J/ψ' && s.includes('Pb a') && s.includes('Pb b') && s[3] === 'J/ψ');
+  check(ok && res.every(r => /of 3 here/.test(r[2])), `1.39.1 a J/ψ drawn over two lead nuclei is picked first, and clicking again goes through what is under it and round (${res.map(r => `${r[0]}: ${r[1].join(' → ')}`).join('; ')}), saying "${res[0][2]}"`,
+    `1.39.1 pick: ${JSON.stringify(res)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.1 pick errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
+PARTS.bar = async (page, check) => { // (1.39.1 item 107: six menus on the bar, the old thirteen in them)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    loadPreset('empty'); const cats = [...document.querySelectorAll('#palette .cat:not(.find)')], names = cats.map(b => b.textContent.replace(' ▾', ''));
+    const seen = new Set(), heads = {};
+    for (const b of cats) { b.click(); const m = $('pmenu');
+      const grab = () => { for (const it of m.querySelectorAll('.pm-i[data-k]')) seen.add(it.textContent.trim()); };
+      const subs = [...m.querySelectorAll('[data-sub]')];
+      heads[b.textContent.replace(' ▾', '')] = [...m.querySelectorAll('.pm-h')].map(h => h.textContent).join('/') + (subs.length ? ` [${subs.length} lists]` : '');
+      if (subs.length) for (let i = 0; i < subs.length; i++) { m.querySelectorAll('[data-sub]')[i].click(); grab(); const back = m.querySelector('[data-back]'); if (!back) return { err: 'no back' }; back.click(); }
+      else grab();
+      pmenuClose(); }
+    const all = new Set(); for (const [, l] of pcats()) for (const sp of l) if (sp !== 'pt') all.add(1);
+    const want = pcats().reduce((a, [, l]) => a + l.filter(x => x !== 'pt').length, 0);
+    let got = 0; for (const [, l] of pcats()) for (const sp of l) if (sp !== 'pt') got++;
+    // every particle of the old menus is in a new one: by its label and name
+    const miss = []; for (const [n, l] of pcats()) for (const sp of l) if (sp !== 'pt' && ![...seen].some(t => t.includes(specLabel(sp)) && t.includes(specName(sp)))) miss.push(n + ':' + specLabel(sp));
+    return { names, heads, miss };
+  });
+  check(!r.err && r.names.join('|') === 'Leptons|Hadrons|Nuclei|Bosons|Light|Antimatter & hypothetical' && !r.miss.length && /\[5 lists\]/.test(r.heads.Hadrons),
+    `1.39.1 the bar holds six menus (${r.names.join(', ')}) instead of thirteen; every particle of the old menus is in one (Hadrons and Nuclei open a list of their groups, each with a way back; the others show their groups headed: ${Object.entries(r.heads).map(([k, v]) => `${k}: ${v}`).join('; ')})`,
+    `1.39.1 bar: ${JSON.stringify(r)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.1 bar errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
+PARTS.mass = async (page, check) => { // (1.39.1 item 106: masses in u, MeV/c², or as fits)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => { loadPreset('empty'); setRunning(false); showTab('inspect'); const out = {};
+    const a = addAtom('C', 0, 0), o = addExo('Jpsi', 3, 0, 0, 1, 0); o.wait = true;
+    for (const v of ['auto', 'u', 'MeV']) { document.querySelector(`#segMUnit [data-v="${v}"]`).click();
+      R.selX = null; R.sel = a; renderInspect(); const t1 = ($('tp-inspect').textContent.match(/Mass\s*([\d.,]+ (?:u|[MGT]eV\/c²))/) || [])[1];
+      R.sel = null; R.selX = { kind: 'exo', o, t0: W.rt }; renderInspect(); const t2 = ($('tp-inspect').textContent.match(/Rest mass\s*([^(]*)/) || [])[1];
+      out[v] = [String(t1).trim(), String(t2).trim()]; }
+    document.querySelector('#segMUnit [data-v="auto"]').click(); return out; });
+  const ok = /^12 u/.test(r.auto[0]) && /3,097 MeV\/c²/.test(r.auto[1]) && /^12 u/.test(r.u[0]) && /3\.32\d* u/.test(r.u[1]) && /11\.17\d* GeV\/c²/.test(r.MeV[0]) && /3,097 MeV\/c²/.test(r.MeV[1]);
+  check(ok, `1.39.1 Settings → masses in: as fits (carbon ${r.auto[0]}, J/ψ ${r.auto[1]}), u (${r.u[0]}, ${r.u[1]}), MeV/c² (${r.MeV[0]}, ${r.MeV[1]})`, `1.39.1 mass: ${JSON.stringify(r)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.1 mass errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

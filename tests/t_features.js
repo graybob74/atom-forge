@@ -398,7 +398,7 @@ const { openPage } = require('./browser');
     const out = {};
     loadPreset('empty'); setRunning(false); W.decayOn = false;
     out.cats = PCATS.map(([n, l]) => n + ':' + l.filter(x => x !== 'pt').length).join(' ');
-    const btn = document.querySelector('#palette .cat[data-ci="4"]'); pmenuOpen(4, btn); const items = document.querySelectorAll('#pmenu .pm-i').length; document.querySelector('#pmenu .pm-i[data-k="0"]').click();
+    const btn = document.querySelector('#palette .cat[data-bi="1"]') || document.body; pmenuOpen(4, btn); /* (1.39.1: the bar's Hadrons holds Mesons) */ const items = document.querySelectorAll('#pmenu .pm-i').length; document.querySelector('#pmenu .pm-i[data-k="0"]').click();
     out.menu = { items, spec: UI.spec.sp, closed: $('pmenu').hidden };
     placeSpec(UI.spec, 0, 0, 1); out.placedPi = W.exo.filter(o => !o.dead).map(o => o.sp).join();
     selectSpec({ kind: 'nu', fl: 'tau', anti: true }); placeSpec(UI.spec, 0, 0, 1); out.nu = W.rays.filter(r => r.nu).map(r => r.lab.split(' ')[0]).join();
