@@ -18,7 +18,7 @@
    γ rays (124 eV and up) go straight through mirrors, lenses and prisms; glass absorbs ultraviolet below 300 nm.
    Neutrinos go through everything. Thermal light from glowing walls meets them too (0.67). */
 const OBJ_KINDS = ['mirror', 'splitter', 'lens', 'prism', 'screen', 'stop', 'wall', 'foil', 'plates'];
-const OBJ_NAME = { mirror: 'Mirror', splitter: 'Beam splitter', lens: 'Lens', prism: 'Prism', screen: 'Detector screen', stop: 'Beam stop', wall: 'Wall', foil: 'Foil', plates: 'Charged plates', polarizer: 'Polarizer', slits: 'Slits' };
+const OBJ_NAME = { detector: 'Particle detector', mirror: 'Mirror', splitter: 'Beam splitter', lens: 'Lens', prism: 'Prism', screen: 'Detector screen', stop: 'Beam stop', wall: 'Wall', foil: 'Foil', plates: 'Charged plates', polarizer: 'Polarizer', slits: 'Slits' };
 /* The polarizer (Realistic particles 7, 1.27): a sheet passing light polarized along its axis, at ob.pa degrees from
    the plane (0: along the sheet in the plane, 90: across the plane); offered by the Objects tool with Photon
    polarization on (OBJ_KINDS is left as it was: t_fuzz draws from it). Off, it lets light through untouched. */
@@ -28,6 +28,44 @@ const OBJ_POL = 'polarizer';
    polarizer). Light and fast particles pass only through the openings; with Photons as waves on, light passing an
    opening is diffracted (waveSlit: the N-slit pattern). Off, light goes straight through the openings (a shadow). */
 const OBJ_SLIT = 'slits';
+/* (1.39.3 item 115) A particle detector in layers, as ATLAS and CMS: round, its centre the piece's middle, its radius
+   half the piece. Inside out: the tracker (to 0.45 of the radius: charged particles counted as tracks), the
+   electromagnetic calorimeter (to 0.6: electrons, positrons and photons stop and shower, their energy measured), the
+   hadron calorimeter (to 0.8: hadrons, nucleons and nuclei stop), the muon chambers (to the edge: only muons reach
+   them, and they fly on out). Neutrinos and dark particles pass everything: they show as the missing momentum, the
+   opposite of the sum of what was measured. Only what crosses a layer outward is measured (a beam's own particles,
+   in the pipe, are not); atoms and slow electrons do not feel it. Kept out of OBJ_KINDS (t_fuzz draws from it). Each
+   boundary a polygon of DET_N sides (edges e: layer ⌊e / DET_N⌋). */
+const OBJ_DET = 'detector', DET_R = [0.45, 0.6, 0.8, 1], DET_N = 48, DET_WIN = 2.5; // (DET_WIN: s of real time an event's deposits are shown and summed)
+const DET_LAYER = ['tracker', 'ECAL', 'HCAL', 'muon chambers'];
+function detGeo(ob) { return [(ob.x0 + ob.x1) / 2, (ob.y0 + ob.y1) / 2, objLen(ob) / 2]; }
+function detEdges(ob) {
+  const key = `${ob.x0},${ob.y0},${ob.x1},${ob.y1}`; if (ob._ek === key) return ob._ed;
+  const [cx, cy, R] = detGeo(ob), ed = [];
+  for (const f of DET_R) for (let i = 0; i < DET_N; i++) { const a = 2 * Math.PI * i / DET_N, b = 2 * Math.PI * (i + 1) / DET_N; ed.push([cx + f * R * Math.cos(a), cy + f * R * Math.sin(a), cx + f * R * Math.cos(b), cy + f * R * Math.sin(b)]); }
+  Object.defineProperty(ob, '_ed', { value: ed, writable: true, configurable: true, enumerable: false }); Object.defineProperty(ob, '_ek', { value: key, writable: true, configurable: true, enumerable: false });
+  return ed;
+}
+function detClear(ob) { ob.det = { trk: 0, ecal: 0, hcal: 0, mu: 0, n: 0, dep: [] }; }
+/* Does a move through edge e of the detector go outward? */
+function detOut(ob, e, x, y, ux, uy) { const [cx, cy] = detGeo(ob); return (x - cx) * ux + (y - cy) * uy > 0; }
+/* A measurement: layer li (1 ECAL, 2 HCAL, 3 muon chambers; 0 a track) at (x, y), energy E (eV), momentum (eV/c) along (ux, uy). */
+function detRecord(ob, li, x, y, E, pmag, ux, uy, charged) {
+  if (!ob.det) detClear(ob);
+  const D = ob.det, un = Math.hypot(ux, uy) || 1;
+  if (li === 0) { D.trk++; return; }
+  if (li === 1) D.ecal += E; else if (li === 2) D.hcal += E; else D.mu++;
+  D.n++;
+  D.dep.push({ li, x, y, E, px: pmag * ux / un, py: pmag * uy / un, rt: W.rt, q: !!charged });
+  if (D.dep.length > 400) D.dep.splice(0, D.dep.length - 400);
+}
+/* What the detector shows for the last DET_WIN seconds: energies by layer, muons, the missing momentum (eV/c, the vector). */
+function detEvent(ob) {
+  const D = ob.det; if (!D) return null;
+  let ec = 0, hc = 0, mu = 0, px = 0, py = 0, n = 0;
+  for (const d of D.dep) { if (W.rt - d.rt > DET_WIN) continue; n++; if (d.li === 1) ec += d.E; else if (d.li === 2) hc += d.E; else mu++; px += d.px; py += d.py; }
+  return { n, ec, hc, mu, mx: -px, my: -py, miss: Math.hypot(px, py) };
+}
 const OBJ_HALF = 0.15; // Å: half the thickness of a piece, as atoms meet it
 const OBJ_BINS = 24, OBJ_LO = -2; // the screen's spectrum: 24 bins of half a decade from 0.01 eV (to 10 GeV)
 const PRISM_N = (nm) => 1.5895 + 9400 / (nm * nm); // (F2 flint glass: 1.648 at 400 nm, 1.609 at 700 nm)
@@ -41,6 +79,7 @@ function objMake(kind, x0, y0, x1, y1, o = {}) {
   if (kind === 'foil') { ob.Z = Number.isInteger(o.Z) ? o.Z : 79; ob.layers = Number.isFinite(o.layers) ? o.layers : 10; }
   if (kind === 'plates') { ob.V = Number.isFinite(o.V) ? o.V : 100; ob.gap = Number.isFinite(o.gap) ? o.gap : 10; }
   if (kind === 'screen') objClearHits(ob);
+  if (kind === OBJ_DET) detClear(ob); // (1.39.3)
   return ob;
 }
 function objAdd(kind, x0, y0, x1, y1, o) { const ob = objMake(kind, x0, y0, x1, y1, o); W.objs.push(ob); W.dirty++; return ob; }
@@ -53,6 +92,7 @@ function objNormal(ob) { const L = objLen(ob) || 1; return [-(ob.y1 - ob.y0) / L
 function prismApex(ob) { const [nx, ny] = objNormal(ob), L = objLen(ob), mx = (ob.x0 + ob.x1) / 2, my = (ob.y0 + ob.y1) / 2; return [mx + nx * L * 0.8660254, my + ny * L * 0.8660254]; }
 /* Its solid edges [ax, ay, bx, by]: one, a prism's three, the plates' two. */
 function objEdges(ob) {
+  if (ob.kind === OBJ_DET) return detEdges(ob); // (1.39.3)
   if (ob.kind === 'prism') { const [ax, ay] = prismApex(ob); return [[ob.x0, ob.y0, ob.x1, ob.y1], [ob.x1, ob.y1, ax, ay], [ax, ay, ob.x0, ob.y0]]; }
   if (ob.kind === 'plates') { const [nx, ny] = objNormal(ob), g = ob.gap; return [[ob.x0, ob.y0, ob.x1, ob.y1], [ob.x0 + nx * g, ob.y0 + ny * g, ob.x1 + nx * g, ob.y1 + ny * g]]; }
   return [[ob.x0, ob.y0, ob.x1, ob.y1]];
@@ -105,6 +145,7 @@ function opticHit(h, x0, y0, ux, uy, E, opts) {
     if (o2.bounce > 40) { absorb(); return; }
     const [ax, ay, bx, by] = objEdges(ob)[h.e], L = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / L, ty = (by - ay) / L, nx = -ty, ny = tx;
     const k = ob.kind;
+    if (k === OBJ_DET) { const li = Math.floor(h.e / DET_N); if (li !== 0 || !detOut(ob, h.e, x, y, ux, uy)) { go(ux, uy, x, y); return; } if (!o2.glow) W.ledger.escaped += E; detRecord(ob, 1, x, y, E, E, ux, uy, false); flash(x, y, [120, 230, 140], 1.4, 0.3); return; } // (a photon stops in the ECAL, 1.39.3)
     if (k === 'mirror' || k === 'splitter') {
       if (rnd() < ob.R) { const d = ux * nx + uy * ny; if (o2.pol && RP.pol) o2.pol = polMirror(o2.pol, nx, ny); go(ux - 2 * d * nx, uy - 2 * d * ny, x, y); } else go(ux, uy, x, y); // (its polarization mirrored, an ideal metal's: Realistic particles 7, 1.27; passing a splitter keeps it)
       return;
@@ -222,7 +263,7 @@ function objRecord(ob, E, light, x, y) {
 /* ---- atoms: a soft wall on their edge, both sides of every edge (rounded at the ends) */
 function objForces(mdI, nmd) {
   const K = S.k, X = S.x, Y = S.y, FX = S.fx, FY = S.fy, FAST = S.fast, RAD = S.rad, DEAD = S.dead, OBJ = S.obj, M = S.m;
-  for (const ob of W.objs) for (const [ax, ay, bx, by] of objEdges(ob)) {
+  for (const ob of W.objs) if (ob.kind !== OBJ_DET) for (const [ax, ay, bx, by] of objEdges(ob)) { // (the detector: atoms do not feel it, 1.39.3)
     const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1e-12, pad = 3;
     const xl = Math.min(ax, bx) - pad, xh = Math.max(ax, bx) + pad, yl = Math.min(ay, by) - pad, yh = Math.max(ay, by) + pad;
     for (let q = 0; q < nmd; q++) {
@@ -241,7 +282,7 @@ function objPE(p) {
   if (!W.objs.length || p.k !== NUC || p.fast || p.rad) return 0;
   let V = 0;
   const r = wallIn(p) + OBJ_HALF, k = 30 * Math.min(1, p.m);
-  for (const ob of W.objs) for (const [ax, ay, bx, by] of objEdges(ob)) {
+  for (const ob of W.objs) if (ob.kind !== OBJ_DET) for (const [ax, ay, bx, by] of objEdges(ob)) {
     const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1e-12;
     const t = clamp(((p.x - ax) * ex + (p.y - ay) * ey) / L2, 0, 1), d = Math.hypot(p.x - (ax + t * ex), p.y - (ay + t * ey));
     if (d < r) V += 0.5 * k * (r - d) * (r - d);
@@ -249,9 +290,9 @@ function objPE(p) {
   return V;
 }
 /* The first edge the move (x0, y0) → (x1, y1) crosses: { f (fraction of the move), ob, e } or null. */
-function objCross(x0, y0, x1, y1) {
+function objCross(x0, y0, x1, y1, noDet) {
   let best = null;
-  for (const ob of W.objs) { const ed = objEdges(ob); for (let e = 0; e < ed.length; e++) { const f = moveSeg(x0, y0, x1, y1, ...ed[e]); if (f >= 0 && (!best || f < best.f)) best = { f, ob, e }; } }
+  for (const ob of W.objs) { if (noDet && ob.kind === OBJ_DET) continue; const ed = objEdges(ob); for (let e = 0; e < ed.length; e++) { const f = moveSeg(x0, y0, x1, y1, ...ed[e]); if (f >= 0 && (!best || f < best.f)) best = { f, ob, e }; } }
   return best;
 }
 /* Mirror the end of a move across edge e: the position and the velocity's normal part. */
@@ -265,19 +306,40 @@ function objBounce(p, h, x0, y0) {
 }
 /* A free electron (or positron) in the ordinary steps: bounces off every piece. */
 function objLepton(p, x0, y0) {
-  const h = objCross(x0, y0, p.x, p.y);
+  const h = objCross(x0, y0, p.x, p.y, true);
   if (h) objBounce(p, h, x0, y0);
 }
 /* A fast or radiation-mode particle that moved from (x0, y0) to where it is: crosses, bounces, or is stopped.
    Returns true when it is gone. */
 function objPath(p, x0, y0) {
-  const h = objCross(x0, y0, p.x, p.y); if (!h) return false;
+  let h = objCross(x0, y0, p.x, p.y); if (!h) return false;
+  for (let g = 0; g < 12 && h && h.ob.kind === OBJ_DET; g++) { // (a detector's layers, each crossed in turn this step, 1.39.3)
+    const cx = x0 + (p.x - x0) * h.f, cy = y0 + (p.y - y0) * h.f;
+    if (detPart(p, h.ob, h.e, cx, cy, x0, y0)) return true;
+    const L = Math.hypot(p.x - x0, p.y - y0) || 1; x0 = cx + (p.x - x0) / L * 1e-6; y0 = cy + (p.y - y0) / L * 1e-6; h = objCross(x0, y0, p.x, p.y);
+  }
+  if (!h || h.ob.kind === OBJ_DET) return false;
   const ob = h.ob, k = ob.kind, cx = x0 + (p.x - x0) * h.f, cy = y0 + (p.y - y0) * h.f, neutron = p.k === NUC && p.Z === 0;
   if (k === 'wall') { objBounce(p, h, x0, y0); return false; }
   if (neutron && k !== 'stop' && k !== 'screen') return false; // (neutrons go through glass, metal foil and plates)
   if (k === 'foil') return foilCross(p, ob, cx, cy, x0, y0);
   if (k === OBJ_SLIT && slitOpen(ob, slitS(ob, cx, cy))) return false; // (through an opening, 1.27 feature 19)
   return objStop(p, ob, cx, cy);
+}
+/* A fast particle (W.parts) crossing a detector layer: outward, an electron or positron stops in the ECAL, a nucleon or
+   nucleus in the HCAL; a charged one is counted in the tracker on its way out of it. */
+function detPart(p, ob, e, cx, cy, x0, y0) {
+  const li = Math.floor(e / DET_N), ux = p.x - x0, uy = p.y - y0;
+  if (p.beam === true && !p.hit || !detOut(ob, e, cx, cy, ux, uy)) return false;
+  const KE = p.rad ? p.KE : keOf(p), m = (p.k === NUC ? p.m * PHYS.AMU_MEV : PHYS.MEC2) * 1e6, pm = Math.sqrt(KE * KE + 2 * KE * m), q = p.k === NUC ? p.Z - p.ne : p.k === ELEC ? -1 : 1;
+  if (li === 0 && q) detRecord(ob, 0, cx, cy, 0, 0, ux, uy, true);
+  const stop = (p.k === ELEC || p.k === POS) ? li === 0 : p.k === NUC ? li === 1 : false; // (edge layer li: the boundary into layer li + 1)
+  if (!stop) return false;
+  detRecord(ob, li + 1, cx, cy, KE, pm, ux, uy, !!q);
+  flash(cx, cy, li === 0 ? [120, 230, 140] : [255, 170, 80], 1.6, 0.35);
+  p.x = cx; p.y = cy; if (p.trk) extendTrack(p);
+  if (p.k === POS || p.anti) { annihilateAtWall(p, 'qObj'); return true; }
+  W.ledger.escaped += KE; W.count.wallStop++; chargeTo(p.q, 'qObj'); kill(p); return true;
 }
 /* Stopped in a piece: its kinetic energy goes into it (out of the books, as at an absorbing wall); antimatter
    annihilates there. A screen counts it first. */
@@ -312,7 +374,13 @@ const OBJ_GHOST = new Set(['wimp', 'axion', 'nuS', 'neut']);
 /* A pion, muon, kaon … in flight (hep.js): a wall turns it back, a foil lets it through, anything else stops it. */
 function objExo(o, x0, y0) {
   if (OBJ_GHOST.has(o.sp)) return false; // (1.39.3: WIMPs, axions, sterile neutrinos and neutralinos pass through placed objects, as through matter; a screen does not see them)
-  const h = objCross(x0, y0, o.x, o.y); if (!h) return false;
+  let h = objCross(x0, y0, o.x, o.y); if (!h) return false;
+  for (let g = 0; g < 12 && h && h.ob.kind === OBJ_DET; g++) { // (a detector's layers, each crossed in turn this step, 1.39.3)
+    const cx = x0 + (o.x - x0) * h.f, cy = y0 + (o.y - y0) * h.f;
+    if (detExo(o, h.ob, h.e, cx, cy, x0, y0)) return true;
+    const L = Math.hypot(o.x - x0, o.y - y0) || 1; x0 = cx + (o.x - x0) / L * 1e-6; y0 = cy + (o.y - y0) / L * 1e-6; h = objCross(x0, y0, o.x, o.y);
+  }
+  if (!h || h.ob.kind === OBJ_DET) return false;
   const k = h.ob.kind;
   if (k === 'foil') return false;
   if (k === OBJ_SLIT && slitOpen(h.ob, slitS(h.ob, x0 + (o.x - x0) * h.f, y0 + (o.y - y0) * h.f))) return false; // (through an opening, 1.27 feature 19)
@@ -322,6 +390,20 @@ function objExo(o, x0, y0) {
   exoLeaves(o, 'qObj'); return true;
 }
 
+/* An unstable particle crossing a detector layer outward: muons reach the chambers and fly on; an electron or positron
+   stops in the ECAL; hadrons (and anything else that is not a lepton) in the HCAL. */
+function detExo(o, ob, e, cx, cy, x0, y0) {
+  const li = Math.floor(e / DET_N), ux = o.x - x0, uy = o.y - y0;
+  if (o.xb && !o.hit || !detOut(ob, e, cx, cy, ux, uy)) return false;
+  const d = XP[o.sp], q = d.q || 0, pm = Math.sqrt(o.KE * o.KE + 2 * o.KE * o.m * MEV), mu = o.sp === 'mu-' || o.sp === 'mu+', el = o.sp === 'e-' || o.sp === 'e+';
+  if (li === 0 && q) detRecord(ob, 0, cx, cy, 0, 0, ux, uy, true);
+  if (mu) { if (li === 2) { detRecord(ob, 3, cx, cy, o.KE, pm, ux, uy, true); flash(cx, cy, [190, 150, 255], 1.4, 0.3); } return false; }
+  if (!(el ? li === 0 : li === 1)) return false;
+  o.x = cx; o.y = cy;
+  detRecord(ob, li + 1, cx, cy, o.KE + (d.B ? 0 : o.m * MEV), pm, ux, uy, !!q); // (a calorimeter takes a meson's mass as well: it decays in it; a baryon's is kept as it stops)
+  flash(cx, cy, li === 0 ? [120, 230, 140] : [255, 170, 80], 1.8, 0.35);
+  exoLeaves(o, 'qObj'); return true;
+}
 /* ---- the plates' field */
 function platesField(x, y, E) {
   for (const ob of W.objs) {
@@ -357,6 +439,7 @@ function objText(ob) {
   if (k === 'plates') return `Charged plates, ${Math.abs(ob.V).toLocaleString('en-US')} V across ${+ob.gap.toFixed(1)} Å`;
   if (k === OBJ_POL) return `Polarizer, axis ${ob.pa >= 89.5 ? 'across the plane' : ob.pa < 0.5 ? 'in the plane' : Math.round(ob.pa) + '° from the plane'}${RP.pol ? '' : ' (works with Photon polarization on)'}`;
   if (k === OBJ_SLIT) return `${ob.ns === 1 ? 'A single slit' : ob.ns === 2 ? 'Double slit' : `Grating of ${ob.ns} slits`}, ${+ob.sa.toFixed(1)} Å wide${ob.ns > 1 ? `, ${+ob.sd.toFixed(1)} Å apart` : ''}${RP.pwave ? '' : ' (diffracts light with Photons as waves on)'}`; // (1.27 feature 19)
+  if (k === OBJ_DET) { const v = detEvent(ob); return v && v.n ? `Particle detector: ECAL ${fmtE(v.ec)}, HCAL ${fmtE(v.hc)}, ${v.mu} muon${v.mu === 1 ? '' : 's'}, missing ${fmtE(v.miss)}/c` : 'Particle detector (tracker, ECAL, HCAL, muon chambers)'; }
   if (k === 'screen') { const H = ob.hits; return `Detector screen: ${H ? H.n.toLocaleString('en-US') : 0} hits (${H ? H.light : 0} light, ${H ? H.parts : 0} particles)`; }
   return OBJ_NAME[k];
 }
@@ -373,6 +456,7 @@ const OBJ_HELP = {
   foil: 'Fast charges pass, a few deflected sharply by nuclei (Rutherford); slow ones stop.',
   plates: 'A uniform field between them steers charges. The second plate is left of your drag.',
   slits: 'An opaque sheet with one, two or five openings: light and fast particles pass only through them. With Photons as waves on, light spreads from them in fringes (X-rays of a few keV, whose wavelength fits these sizes, show them best).',
+  detector: 'Layers as ATLAS and CMS: tracker, electromagnetic and hadron calorimeters, muon chambers. Put a collision at its centre: each layer lights what it stops; the arrow is the missing momentum (neutrinos).',
   polarizer: 'Passes light polarized along its axis (cos² of the angle between: Malus\'s law) and absorbs the rest; unpolarized light, half.',
 };
 function objV() { return Math.pow(10, (OPT.objects.Vs || 0) / 100); }

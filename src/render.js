@@ -284,6 +284,25 @@ function drawObjects() {
       }
       if (R.view.labels !== false) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(150,255,190,0.95)'; ctx.textAlign = 'center';
         ctx.fillText(H && H.n ? `${H.n.toLocaleString('en-US')} hit${H.n > 1 ? 's' : ''}` : 'detector', w2sx(mx + nx * 1.5), w2sy(my + ny * 1.5)); }
+    } else if (k === OBJ_DET) { // (1.39.3 item 115) the layers as rings, what each measured lit in it, the missing momentum as an arrow
+      const [cx, cy, Rr] = detGeo(ob), sx = w2sx(cx), sy = w2sy(cy), rs = Rr * R.s, ev = detEvent(ob);
+      const ring = (f0, f1, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy, f1 * rs, 0, 2 * Math.PI); ctx.arc(sx, sy, f0 * rs, 0, 2 * Math.PI, true); ctx.fill(); };
+      ring(0, DET_R[0], 'rgba(110,160,255,0.05)'); ring(DET_R[0], DET_R[1], 'rgba(110,230,140,0.10)'); ring(DET_R[1], DET_R[2], 'rgba(255,170,80,0.10)'); ring(DET_R[2], DET_R[3], 'rgba(190,150,255,0.08)');
+      ctx.lineWidth = 1; for (let i = 0; i < 4; i++) { ctx.strokeStyle = ['rgba(110,160,255,0.55)', 'rgba(110,230,140,0.55)', 'rgba(255,170,80,0.55)', 'rgba(190,150,255,0.6)'][i]; ctx.beginPath(); ctx.arc(sx, sy, DET_R[i] * rs, 0, 2 * Math.PI); ctx.stroke(); }
+      if (ob.det) for (const d of ob.det.dep) { // (each deposit a wedge in its layer, its size growing with the energy, fading over DET_WIN)
+        const age = (W.rt - d.rt) / DET_WIN; if (age > 1) continue;
+        const a = -Math.atan2(d.y - cy, d.x - cx), f0 = DET_R[d.li - 1], f1 = DET_R[d.li], w = d.li === 3 ? 0.05 : clamp(0.03 + 0.02 * Math.log10(Math.max(1, d.E / 1e6)), 0.03, 0.14);
+        ctx.fillStyle = (d.li === 1 ? 'rgba(110,230,140,' : d.li === 2 ? 'rgba(255,170,80,' : 'rgba(190,150,255,') + (0.85 * (1 - age)).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(sx, sy, f1 * rs, a - w, a + w); ctx.arc(sx, sy, f0 * rs, a + w, a - w, true); ctx.fill();
+      }
+      if (ev && ev.n && ev.miss > 0) { // (the missing momentum: from the centre, its length against the largest measured)
+        let mx2 = 1; for (const d of ob.det.dep) if (W.rt - d.rt <= DET_WIN) mx2 = Math.max(mx2, Math.hypot(d.px, d.py));
+        const L2 = Math.min(1, ev.miss / mx2) * DET_R[0] * rs, ux = ev.mx / ev.miss, uy = ev.my / ev.miss, ex = sx + ux * L2, ey = sy - uy * L2;
+        ctx.strokeStyle = 'rgba(255,90,120,0.9)'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
+        const ah = 7, an = Math.atan2(-uy, ux); ctx.fillStyle = 'rgba(255,90,120,0.9)'; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - ah * Math.cos(an - 0.4), ey - ah * Math.sin(an - 0.4)); ctx.lineTo(ex - ah * Math.cos(an + 0.4), ey - ah * Math.sin(an + 0.4)); ctx.fill();
+      }
+      if (R.view.labels !== false) { ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,225,240,0.9)';
+        ctx.fillText(ev && ev.n ? `ECAL ${fmtE(ev.ec)} · HCAL ${fmtE(ev.hc)} · μ ${ev.mu} · missing ${fmtE(ev.miss)}/c` : 'particle detector', sx, sy + rs + 14); }
     } else if (k === 'stop') {
       ctx.strokeStyle = 'rgba(70,72,84,0.95)'; ctx.lineWidth = lw(0.9, 6, 20); ctx.lineCap = 'butt'; seg(ob.x0, ob.y0, ob.x1, ob.y1);
       ctx.strokeStyle = 'rgba(255,190,80,0.7)'; ctx.lineWidth = 1.2; seg(ob.x0, ob.y0, ob.x1, ob.y1); ctx.lineCap = 'round';

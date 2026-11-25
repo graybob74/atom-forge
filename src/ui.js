@@ -612,7 +612,7 @@ function buildToolOpts() {
       if (o.kind === OBJ_POL && !RP.pol) o.kind = 'mirror'; // (the polarizer is offered with Photon polarization on, 1.27)
       if (o.kind === OBJ_SLIT && !RP.pwave) o.kind = 'mirror'; // (the slits with Photons as waves on, 1.27 feature 19)
       const k = o.kind;
-      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.concat(RP.pol ? [OBJ_POL] : []).concat(RP.pwave ? [OBJ_SLIT] : []).map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates')]), k)}</span>` + // (the polarizer with Photon polarization on, 1.27)
+      h = `<span data-g="kind">${seg('Object', OBJ_KINDS.concat(RP.pol ? [OBJ_POL] : []).concat(RP.pwave ? [OBJ_SLIT] : []).concat([OBJ_DET]).map(q => [q, OBJ_NAME[q].replace('Detector screen', 'Screen').replace('Charged plates', 'Plates').replace('Particle detector', 'Detector')]), k)}</span>` + // (the polarizer with Photon polarization on, 1.27)
         (k === OBJ_POL ? rangeCtl('oOpa', 'Axis', 0, 90, o.pa, objPaText(o.pa)) : '') +
         (k === OBJ_SLIT ? `<span data-g="ns">${seg('Slits', [[1, '1'], [2, '2'], [5, '5 (grating)']], o.ns)}</span>` + rangeCtl('oOsa', 'Width', 1, 40, o.sa2, `${o.sa2 / 2} Å`) + (o.ns > 1 ? rangeCtl('oOsd', 'Apart', 1, 60, o.sd, `${o.sd} Å`) : '') : '') + // (1.27 feature 19)
         (k === 'lens' ? rangeCtl('oOf', 'Focal length', -100, 100, o.f, objFText(o.f)) : '') +
@@ -8061,6 +8061,7 @@ function qmObject(ob) {
       qmBtn('Swap + and −', () => { undoMark('Change an object'); ob.V = -ob.V; });
   }
   if (ob.kind === OBJ_POL) h += qmRange('Axis', 0, 90, Math.round(ob.pa), objPaText(ob.pa), (v) => { und(); ob.pa = v; title(); return objPaText(v); }); // (from the plane: 0 in it, 90 across it, 1.27)
+  if (ob.kind === OBJ_DET) h += qmBtn('Clear its record', () => detClear(ob), { off: !(ob.det && ob.det.n) }); // (1.39.3)
   if (ob.kind === 'foil') h += qmRange('Layers', 1, 100, ob.layers, String(ob.layers), (v) => { und(); ob.layers = v; title(); return String(v); });
   if (ob.kind === 'screen') h += qm2(qmBtn('Where hits land', () => { ob.view = 'where'; }, { pressed: ob.view === 'where', cls: 'tick', title: 'Its bars show how many hits landed on each part of it (1.02)' }),
     qmBtn('Their energies', () => { ob.view = 'energy'; }, { pressed: ob.view !== 'where', cls: 'tick', title: 'Its bars show the spectrum of the energies it caught, low at its first end' })) +

@@ -722,6 +722,26 @@ PARTS.labsPage = async (page, check) => { // (1.39.3: the readout in the Data ta
   check(!r.lz[0] && /Dark-matter/.test(r.lz[1]) && /expected/.test(r.lz[3]) && !r.cast[0] && /helioscope/.test(r.cast[1]) && /sin²/.test(r.cast[3]) && r.gone,
     `1.39.3 the Data tab's readout: LZ "${r.lz[2]}, ${r.lz[3]}"; CAST "${r.cast[2]}, ${r.cast[3]}"; gone in other setups`, `1.39.3 labsPage: ${JSON.stringify(r)}`);
 };
+PARTS.det = async (page, check) => { // (1.39.3 item 115: the particle detector in layers)
+  const mk = () => { const X = load('all', { seed: 3 }), W = X.W; X.PRESETS.empty.build(); for (const k of ['w', 'tw', 'h', 'th']) W.box[k] = 200; W.wall = 'open'; W.decayOn = false; W.gamma = 0; return X; };
+  const run = (X, n) => { for (let i = 0; i < n; i++) X.step(0.0005); };
+  // one of each: where it stops
+  const X = mk(), W = X.W, ob = X.objAdd('detector', -40, 0, 40, 0), go = (sp, ux, uy, KE) => X.fireSpec(sp, 0, 0, ux, uy, KE, false);
+  go({ kind: 'exo', sp: 'mu-' }, 1, 0, 5e9); go({ kind: 'exo', sp: 'pi+' }, 0, 1, 5e9); go({ kind: 'e' }, -1, 0, 5e8); go({ kind: 'gamma' }, 0, -1, 2e8); go(X.SPEC_P, 0.7, 0.7, 3e9); go({ kind: 'exo', sp: 'axion' }, -0.7, 0.7, 1e4);
+  run(X, 4000);
+  const lay = ob.det.dep.map(d => d.li + '@' + Math.round(Math.atan2(d.y, d.x) * 180 / Math.PI)).sort().join(' '), want = ['1@-90', '1@180', '2@45', '2@90', '3@0'].sort().join(' ');
+  // back-to-back muons: nothing missing; a muon alone: its momentum is missing (as a W → μν's neutrino)
+  const Y = mk(), o2 = Y.objAdd('detector', -40, 0, 40, 0); Y.fireSpec({ kind: 'exo', sp: 'mu-' }, 0, 0, 0.6, 0.8, 4e10, false); Y.fireSpec({ kind: 'exo', sp: 'mu+' }, 0, 0, -0.6, -0.8, 4e10, false); run(Y, 2000);
+  const ev2 = Y.detEvent(o2), bal = ev2.mu === 2 && ev2.miss / 4e10 < 1e-9;
+  const Z = mk(), o3 = Z.objAdd('detector', -40, 0, 40, 0); Z.fireSpec({ kind: 'exo', sp: 'mu-' }, 0, 0, 0.6, 0.8, 4e10, false); run(Z, 2000);
+  const ev3 = Z.detEvent(o3), one = ev3.mu === 1 && Math.abs(ev3.miss / 4.01e10 - 1) < 0.01 && ev3.mx < 0 && ev3.my < 0;
+  // atoms and slow electrons do not feel it
+  const A = mk(); A.objAdd('detector', -40, 0, 40, 0); const at = A.addAtom('Ar', 18, 0), pe = A.objPE(at), e = A.addLepton(A.ELEC, 17, 0.1); A.setMotion(e, 5, 1, 0); const ex0 = e.vx; A.forcesNoEvents(); for (let i = 0; i < 50; i++) A.step(0.02);
+  const calm = pe === 0 && e.vx > 0 && Math.sign(ex0) === Math.sign(e.vx);
+  check(lay === want && ob.det.trk >= 3 && bal && one && calm && /Detector/.test(X.objText(ob)) === false && /Particle detector: ECAL/.test(X.objText(ob)),
+    `1.39.3 the particle detector: a photon and an electron stop in the ECAL, a pion and a proton in the HCAL, a muon reaches the chambers, an axion passes (${lay}, ${ob.det.trk} tracks); back-to-back muons leave nothing missing, one alone its whole momentum (${(ev3.miss / 1e9).toFixed(1)} GeV/c); atoms and slow electrons do not feel it`,
+    `1.39.3 det: ${lay} vs ${want}, trk ${ob.det.trk}, bal ${JSON.stringify(ev2)}, one ${JSON.stringify(ev3)}, calm ${pe} ${ex0} ${e.vx}; ${X.objText(ob)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

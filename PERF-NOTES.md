@@ -2076,6 +2076,18 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   a WIMP, and a screen counted them as particles (171 of 226 "hits" were axions). Now WIMPs, axions, sterile neutrinos
   and neutralinos pass through placed objects (`OBJ_GHOST`); the screen counts 0 of them.
 - Checks: f_139 `labs` (both setups, flat), `labsPage` (the readout in the page).
+- **115, a particle detector object** (Objects tool → Detector; `OBJ_DET` in props.js, kept out of OBJ_KINDS as the
+  polarizer is, since t_fuzz draws from that list). Round: its centre the piece's middle, its radius half the piece;
+  four boundaries (48-sided polygons, `detEdges`, so the light and crossing code use them as they use any edge): tracker
+  to 0.45 R, ECAL to 0.6, HCAL to 0.8, muon chambers to the edge. Measured only going outward, and not a beam's own
+  particles (in the pipe): e± and photons stop in the ECAL, nucleons, nuclei and hadrons in the HCAL (a meson's mass
+  counted: it decays there), muons are recorded in the chambers and fly on, charged particles counted as tracks;
+  WIMPs, axions, sterile neutrinos and neutralinos pass (113's `OBJ_GHOST`). One step may cross several layers: each in
+  turn (`objPath`, `objExo` loop). Drawn as four rings, each measurement a wedge in its layer (wider for more energy)
+  fading over 2.5 s, and the missing momentum (minus the sum of the measured momenta over those 2.5 s) as a red dashed
+  arrow; its caption "ECAL · HCAL · μ · missing". Atoms and slow electrons do not feel it (it is left out of the atoms'
+  soft walls, `objPE`, and `objLepton`). Flat game only, as every placed object. Check: f_139 `det` (each kind where it
+  stops; back-to-back 40 GeV muons: missing < 10⁻⁹ of their momentum; one alone: 40.1 GeV/c missing, opposite it).
 - f_ew's antihydrogen fingerprint updated: 1.39.2's fix (antimatter ions sized as their mirrors) changes that setup's
   run (its ions' contact radius, `ljR`); found here, not caught then because f_ew was not in that release's list.
 - Info pages for each (Ω baryon, Pionium, True muonium, Antiprotonic helium, Diquark for the remnant); the Hypothetical
@@ -4935,7 +4947,7 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    at its end counting the photons they turn into, the count against sin²(gBL/2). Built in 1.39.3.
 115. **A particle detector object** (as ATLAS and CMS, in layers): a tracker (charged tracks, curved in its field), an
    electromagnetic calorimeter (electrons and photons stop and shower), a hadron calorimeter (hadrons), muon chambers
-   (only muons reach them), neutrinos as missing momentum; each layer lights what it measures.
+   (only muons reach them), neutrinos as missing momentum; each layer lights what it measures. Built in 1.39.3.
 116. **An invariant-mass plot of what is made**: in Made here (or Data), the combined mass of chosen pairs (e⁺e⁻, μ⁺μ⁻,
    γγ, …) as a histogram over a run, so a bump grows at the J/ψ, the Z, the Higgs or a Z′.
 117. **Feynman diagrams of events**: for a decay, an annihilation, a scattering, the diagram of what happened, drawn from
