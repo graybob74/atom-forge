@@ -1855,7 +1855,7 @@ function quarkSecHTML(sub) {
   const pick = sub.both ? `<div class="seg" data-q="pick" role="group" aria-label="Which nucleon"><button data-v="p" aria-pressed="${sub.which === 'p'}">A proton</button><button data-v="n" aria-pressed="${sub.which === 'n'}">A neutron</button></div>` : '';
   return `<section class="group" id="insQSec"><h3>${esc(sub.head || 'Inside')}: quarks and gluons</h3>${pick}
     <canvas class="quarkcv" id="insQuarks" aria-label="The quarks inside, held together by gluons. Drag a quark out to see confinement."></canvas>
-    <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" data-q="reset">Put it back</button><span class="note">Drag a quark out of it.</span></div>
+    <div class="row" style="justify-content:flex-start;gap:8px"><span class="note">Drag a quark out of it.</span></div>
     <p class="note" id="insQNote">${esc(qNote())}</p></section>`;
 }
 function qNote() {
@@ -3802,8 +3802,8 @@ function bindLab() {
     ib.addEventListener('pointerup', (e) => { if (QV.drag) qPointer(e, 'up'); });
     ib.addEventListener('pointercancel', (e) => { if (QV.drag) qPointer(e, 'up'); });
     ib.addEventListener('click', (e) => { const b = e.target.closest('[data-q]'), v = e.target.closest('button[data-v]');
-      if (b && b.dataset.q === 'reset') { QV.key = ''; renderInspect(); }
-      else if (b && b.dataset.q === 'pick' && v) { QV.pick = v.dataset.v; QV.key = ''; renderInspect(); } }); }
+      // ("Put it back" removed, 1.39.2, the owner: "remove the put it back button from the inspect panel": the picture follows what is left after a pull, and resets with the next particle chosen)
+      if (b && b.dataset.q === 'pick' && v) { QV.pick = v.dataset.v; QV.key = ''; renderInspect(); } }); }
   $('bClear').onclick = () => { undoMark('Empty the chamber'); clearWorld(); W.hist = { t: [], T: [], bath: [] }; R.sel = null; log('tool', 'Chamber emptied'); renderInspect(); };
   $('bSrcClear').onclick = () => { W.sources.length = 0; W.lasers.length = 0; };
 }
