@@ -2033,6 +2033,13 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.39.2 (not released): the particle menus animated (the owner, 2026-11-24: "can you animate the new navigation")
+
+With Settings' motion on, as the other menus: a menu drops in from its button (`moPop`, as before), a group's list slides
+in from the right and "‹ back" slides the groups in from the left (0.16 s, `pmenuAnim`, `pmFwd`/`pmBack`), and the
+button's ▾ turns over while its menu is open (a span `.chev`; the turn itself stays with motion off, without the
+movement). Test: f_139.js anim.
+
 ## 1.39.1 (released 2026-11-24): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
 After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
 kernel). 20,000 waters: **0.56 ms a step**, the goal met by the benchmark's sum (37.5 steps × 0.56 + 0.9 ms drawing =

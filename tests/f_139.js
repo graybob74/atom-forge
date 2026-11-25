@@ -535,6 +535,24 @@ PARTS.more = async (page, check) => { // (1.39.1 item 108: more hypothetical par
     `1.39.1 more hypothetical particles, each decaying with charge kept and the books exact (to ${bk.toExponential(0)} of its mass), flat and 3-D: ${Object.entries(res).map(([k, v]) => `${k} → ${v[1]}${v[0] > 3 ? ` (${v[0]} made)` : ''}`).join('; ')}; the neutralino recoils off xenon as a WIMP; a millicharged particle loses ${lm < 1e-3 ? "nothing measurable" : X.fmtE(lm)} where a pion loses ${X.fmtE(lp)}; Hypothetical holds 15, listed so in Made here (the Z′ too)`,
     `1.39.1 more: charge ${chg} books ${bk} hit ${hit} loss ${lm}/${lp} grp ${grp.length} kinds ${kinds} ${JSON.stringify(res)}`);
 };
+PARTS.anim = async (page, check) => { // (1.39.2: the new navigation animated)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    loadPreset('empty'); const m = $('pmenu'), w = (ms) => new Promise(res => setTimeout(res, ms)), out = [];
+    const had = [...document.querySelectorAll('#palette .cat')].find(b => /Hadrons/.test(b.textContent));
+    const step = (what) => { const first = m.firstElementChild; out.push([what, [...m.classList].filter(c => c.startsWith('pm-')).join(), getComputedStyle(m).animationName, first ? getComputedStyle(first).animationName : '', getComputedStyle(had.querySelector('.chev')).transform !== 'none']); };
+    had.click(); await w(40); step('open');
+    m.querySelector('[data-sub]').click(); await w(40); step('group');
+    m.querySelector('[data-back]').click(); await w(40); step('back');
+    await w(300); const settled = getComputedStyle(m).opacity;
+    pmenuClose(); await w(250); const chevClosed = getComputedStyle(had.querySelector('.chev')).transform;
+    return { out, settled, chevClosed };
+  });
+  const [o, g, b] = r.out;
+  const ok = o[2] === 'moPop' && o[4] && g[3] === 'pmFwd' && b[3] === 'pmBack' && r.settled === '1' && (r.chevClosed === 'none' || /matrix\(1, 0, 0, 1/.test(r.chevClosed));
+  check(ok, `1.39.2 the particle menus move: Hadrons drops in (${o[2]}), its ▾ turns over while open and back when closed, a group slides in from the right (${g[3]}), ‹ back slides the groups in from the left (${b[3]}), all settled after 0.3 s`, `1.39.2 anim: ${JSON.stringify(r)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.2 anim errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

@@ -500,6 +500,15 @@ details.chain[open] summary { margin-bottom: 10px; }
 /* the particle menus: a category in the palette opens a list of its particles */
 .chip.cat { font-weight: 650; }
 .chip.cat[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+/* (1.39.2) the menus' motion (pmenuAnim), with the other menus' (body.mo: Settings' motion; a menu already drops in by
+   moPop): a group's list slides in from the right, ‹ back slides the groups in from the left, the ▾ turns over */
+.chip.cat .chev { display: inline-block; }
+.chip.cat[aria-expanded="true"] .chev { transform: rotate(180deg); }
+body.mo .chip.cat .chev { transition: transform 0.16s ease; }
+body.mo .pmenu.pm-fwd > * { animation: pmFwd 0.16s ease-out; }
+body.mo .pmenu.pm-back > * { animation: pmBack 0.16s ease-out; }
+@keyframes pmFwd { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes pmBack { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
 .pmenu { position: absolute; z-index: 25; min-width: 240px; max-width: min(360px, calc(100% - 8px)); max-height: min(60vh, 460px); overflow: auto; padding: 6px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); display: grid; gap: 2px; }
 .pm-h { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 4px 8px 6px; }

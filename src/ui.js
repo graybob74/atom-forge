@@ -312,7 +312,7 @@ const PBAR = [['Leptons', ['Leptons', 'Neutrinos']], ['Hadrons', ['Nucleons', 'M
 const CAT_TITLE = { Exotic: 'Exotic atoms and nuclei' };
 function catTitle(n) { return CAT_TITLE[n] || n; }
 function pbars() { const cs = pcats(); return PBAR.map(([n, subs]) => [n, subs.map(x => cs.findIndex(c => c[0] === x)).filter(i => i >= 0)]).filter(([, l]) => l.length); }
-function pmenuOpenBar(bi, btn) {
+function pmenuOpenBar(bi, btn, anim) {
   const m = $('pmenu'), bar = pbars()[bi]; if (!bar) return;
   const [name, cis] = bar, cs = pcats(), key = 'b' + bi;
   if (!m.hidden && m.dataset.bar === key) { pmenuClose(); return; }
@@ -320,14 +320,19 @@ function pmenuOpenBar(bi, btn) {
   if (cis.length === 1 || n <= 16) { pmenuList(cis.length === 1 ? [[name, cs[cis[0]][1]]] : cis.map(ci => [catTitle(cs[ci][0]), cs[ci][1]]), btn, key); return; }
   m.dataset.ci = key; m.dataset.bar = key;
   m.innerHTML = `<div class="pm-h">${esc(name)}</div>` + cis.map(ci => `<button class="pm-i more" data-sub="${ci}">${esc(catTitle(cs[ci][0]))} <span>${cs[ci][1].filter(x => x !== 'pt').length} ›</span></button>`).join('');
-  pmenuPlace(m, btn);
-  m.onclick = (e) => { const b = e.target.closest('[data-sub]'); if (!b) return; const ci = +b.dataset.sub; pmenuList([[catTitle(cs[ci][0]), cs[ci][1]]], btn, key, null, () => { m.dataset.bar = ''; pmenuOpenBar(bi, btn); }, name); };
+  pmenuPlace(m, btn, anim);
+  m.onclick = (e) => { const b = e.target.closest('[data-sub]'); if (!b) return; const ci = +b.dataset.sub; pmenuList([[catTitle(cs[ci][0]), cs[ci][1]]], btn, key, null, () => { m.dataset.bar = ''; pmenuOpenBar(bi, btn, 'back'); }, name); };
   m.oncontextmenu = null;
 }
-function pmenuPlace(m, btn) {
+/* (1.39.2; the owner: "can you animate the new navigation") A menu drops in (fades and slides down from its button), a
+   group's list slides in from the right, "‹ back" slides the groups in from the left; the button's ▾ turns over while its
+   menu is open. Short (0.16 s) and off when the system asks for reduced motion. */
+function pmenuAnim(m, kind) { m.classList.remove('pm-in', 'pm-fwd', 'pm-back'); void m.offsetWidth; m.classList.add('pm-' + kind); }
+function pmenuPlace(m, btn, anim) {
   const r = btn.getBoundingClientRect(), st = $('stage').getBoundingClientRect(), ui = SET.ui || 1;
   m.hidden = false; pmFit(m); m.style.left = Math.max(4, Math.min((r.left - st.left) / ui, (st.width / ui) - m.offsetWidth - 4)) + 'px'; m.style.top = ((r.bottom - st.top) / ui + 4) + 'px';
   for (const b of document.querySelectorAll('#palette .cat')) b.setAttribute('aria-expanded', String(b === btn));
+  pmenuAnim(m, anim || 'in');
 }
 function pmenuOpen(ci, btn) { // (one of the old menus by itself: the bar's lists, and the tests)
   const m = $('pmenu'), [name, list] = pcats()[ci];
@@ -346,7 +351,7 @@ function pmenuList(secs, btn, key, single, back, backName) {
     single = null;
   }
   m.innerHTML = html;
-  pmenuPlace(m, btn); m.scrollTop = 0;
+  pmenuPlace(m, btn, back ? 'fwd' : 'in'); m.scrollTop = 0;
   m.onclick = (e) => { const b = e.target.closest('.pm-i'); if (!b) return; if (b.dataset.back) { back(); return; } pmenuClose(); if (b.dataset.k === 'pt') { openPT(); return; } selectSpec(list[+b.dataset.k]); };
   m.oncontextmenu = (e) => { const b = e.target.closest('.pm-i'); if (!b || b.dataset.k === 'pt') return; chipCard(e, list[+b.dataset.k]); };
 }
@@ -355,7 +360,7 @@ function buildPalette() {
   const pal = $('palette');
   const items = W.d3 ? QUICK.filter((q, i, a) => q === 'sep' ? i > 0 && a[i - 1] !== 'sep' && spec3dOK(a[i - 1].spec) : spec3dOK(q.spec)) : QUICK.slice(); // (3-D: what works there)
   if (UI.customSpec && !QUICK.some(q => q !== 'sep' && sameSpec(q.spec, UI.customSpec)) && (!W.d3 || spec3dOK(UI.customSpec))) items.push('sep', { spec: UI.customSpec });
-  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Search for a particle by typing: pi-, lambda, muonium, deuteron … (/)">Search…</button>` + pbars().map(([name, cis], bi) => `<button class="chip cat" data-bi="${bi}" aria-haspopup="menu" aria-expanded="false" title="${esc(cis.map(ci => catTitle(pcats()[ci][0])).join(', '))}">${esc(name)} ▾</button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
+  let html = `<button class="chip cat find" data-find="1" aria-haspopup="menu" title="Search for a particle by typing: pi-, lambda, muonium, deuteron … (/)">Search…</button>` + pbars().map(([name, cis], bi) => `<button class="chip cat" data-bi="${bi}" aria-haspopup="menu" aria-expanded="false" title="${esc(cis.map(ci => catTitle(pcats()[ci][0])).join(', '))}">${esc(name)} <span class="chev" aria-hidden="true">▾</span></button>`).join('') + '<span class="sep" aria-hidden="true"></span>';
   items.forEach((q, i) => {
     if (q === 'sep') { html += '<span class="sep" aria-hidden="true"></span>'; return; }
     const s = q.spec, col = q.color || specColor(s), lab = q.label || specLabel(s);
