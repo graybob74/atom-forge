@@ -4709,6 +4709,15 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    neutrinos), Hadrons (nucleons, mesons, baryons, resonances, multiquarks), Nuclei (light nuclei, exotic atoms and
    hypernuclei), Bosons, Light, and Antimatter and hypothetical. Waiting for "build it". (1× stays 916 fs/s: the owner,
    "keep the speed how it is".)
+108. **More hypothetical particles** (the owner, 2026-11-24: "add a few more hypotheticals, like sterile neutrinos and any
+   other interesting ones you can find"). Proposed, each at today's experimental limits (to be checked when built), in
+   the Hypothetical group and labelled so: sterile neutrinos (a 7 keV one, dark matter, decaying ν γ: the disputed 3.5 keV
+   X-ray line; and an eV one from the short-baseline anomalies, oscillating with the others), a heavy neutral lepton
+   (GeV, the seesaw's partner, decaying to π e, μ e ν), a glueball (gluons only, ~1.7 GeV; QCD predicts it, candidates
+   unconfirmed), a gluino in an R-hadron (a long-lived supersymmetric particle dressed in quarks, slowing in matter) and
+   the neutralino it ends as, a Z′ (a heavy Z, above 5 TeV, decaying to lepton pairs), a leptoquark (decaying to a lepton
+   and a quark jet), a millicharged particle (charge ~10⁻³ e: barely ionizing), and a microscopic black hole (TeV-scale
+   gravity: it evaporates at once in Hawking radiation, a burst of every kind of particle). Waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
