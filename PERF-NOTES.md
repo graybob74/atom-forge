@@ -2095,6 +2095,46 @@ axion's pieces). The axion's path now counts its whole length (v·h, not the cho
 axion), so in a long enough field every axion converts, once gBL/2 passes π/2. Test: f_139.js kept; f_139.js hypo now
 opens the walls for its sexaquark that leaves.
 
+**Item 109: click again for what lies underneath** (the owner, 2026-11-24, a J/ψ over two nuclei: "i can't click this
+jpsi"). Why: a click looked for atoms and nuclei first and for unstable particles and light only when none was there, so
+a J/ψ drawn over a nucleus (in the particle view, a lead nucleus is drawn many times the J/ψ's size) could not be
+picked. Now `pickStack` lists everything under the pointer, top first: a particle or photon drawn within 9 px (they are
+drawn over the atoms), then atoms, nuclei and electrons (3-D: nearest the camera first), then particles and light a
+little further off; `pickCycled`: a click again on the same spot (within 6 px, within 6 s) takes the next one, round, and
+a note says "2 of 3 here: click again for the next". Inspect, Grab, Measure, Select and the quick menu (its particles).
+Test: f_139.js pick (J/ψ → Pb → Pb → J/ψ, flat and 3-D).
+
+**Item 107: six menus on the particle bar** (the owner: "compacting these a bit more … putting these dropdowns under
+other more general dropdowns", "keep bosons and light separate"). Leptons, Hadrons, Nuclei, Bosons, Light, Antimatter &
+hypothetical, instead of thirteen; a menu of 16 or fewer shows its old groups headed one under another (Leptons:
+leptons and neutrinos), a longer one (Hadrons, Nuclei, and Antimatter & hypothetical since item 108) lists its groups,
+each opening its list with a "‹ back" row (`PBAR`, `pmenuOpenBar`, `pmenuList`). Every particle of the old menus is in a
+new one. Test: f_139.js bar; t_features' particles check opens Mesons by itself as before.
+
+**Item 106: masses in u or MeV/c²** (Settings → General, "Masses in": As fits, u, MeV/c²). As fits is as before (u for
+atoms and nuclei, MeV/c² for particles); u and MeV/c² convert every mass on the cards, the chip cards, the periodic
+table and the Inspect tiles (1 u = 931.494 MeV/c²; GeV/c² and TeV/c² when large): carbon 12 u = 11.1779 GeV/c², J/ψ
+3,097 MeV/c² = 3.32466 u (`fmtMassU`, `fmtMassMeV`, `massText`). Molar masses stay in g/mol. Test: f_139.js mass.
+
+**Item 108: more hypothetical particles**, at the limits checked now, in Hypothetical (now 15) and labelled so:
+- Sterile neutrino νs, 7.1 keV: dark matter decaying to ν γ (the 3.55 keV line); XRISM 2025 sets Γ < 1.0×10⁻²⁷ s⁻¹, so
+  τ = 10²⁷ s, at the limit (the Decay speed setting shows it). The eV kind is not added: MicroBooNE and KATRIN all but
+  ruled it out in 2025 (its card says so).
+- Heavy neutral lepton N, 1 GeV, Majorana (e⁻π⁺ and e⁺π⁻ alike), mixing |U_e|² = 10⁻⁹: τ ≈ 3 ms (estimate).
+- Glueball candidate η(2370) (PDG 2025: 2377 MeV, 148 MeV wide; 0⁻⁺, BESIII 2024): decays K K̄ π, π π η (seen; shares
+  assumed). Drawn as gluon loops; Inside says gluons only.
+- Gluino R-hadron R(g̃ud̄)⁺ and its antiparticle, 2.3 TeV (ATLAS 2025 excludes below 2.27 TeV at 30 ns), τ 30 ns: a heavy
+  charged track; decays to a neutralino and hadrons (about 240, from hadronize). Its nuclear collisions are left out.
+- Neutralino χ̃⁰, 100 GeV, stable: recoils off nuclei as the WIMP does.
+- Z′, 6 TeV (ATLAS 2026: none below 5.5 TeV, sequential model), 3.1% wide, decaying as the Z (`EW_HAD.Zp`).
+- Millicharged particle (and its antiparticle), 0.001 e, 100 MeV: ionizes 10⁻⁶ as much as a charge of 1 (nothing
+  measurable across 36 Å of silicon where a pion of the same energy loses 5.45 keV).
+- Microscopic black hole, 12 TeV (CMS 2026: none below 8.4–11.4 TeV): evaporates at once (`bsmDecay`): ten quanta by their
+  degrees of freedom, the quarks and gluons (75%) as hadrons, leptons and neutrinos in pairs, photons, W, Z, H; about 640
+  particles in an isotropic burst; drawn dark with a glow.
+- Not added: leptoquarks (their charges are thirds: a lepton and one quark jet cannot keep the charge whole here).
+- Each decays with charge kept and the books to 10⁻¹³ of its mass, flat and 3-D. Test: f_139.js more.
+
 ### 1.39.1: the per-slot phases shared by pieces (the owner, 2026-11-22, "build it")
 The owner's benchmark with the per-thread line (20,000 waters, 16 threads, 0.51 ms a step this time against 0.56 the
 run before on nearly the same build: runs differ by about a tenth, so a smaller gain needs several runs). µs a call:
@@ -4729,12 +4769,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    reflecting walls, cross a wrapping box, leave only through open walls; flat and 3-D. Built in 1.39.1.
 106. **A choice of mass units: u or MeV/c²** (the owner, 2026-11-24: "add an option change what mass is (amu or
    mev/c^2)"). A Settings choice for every mass shown (Inspect cards, tables, Data); u today for atoms and molecules,
-   MeV/c² for particles. Waiting for "build it".
+   MeV/c² for particles. Built in 1.39.1.
 107. **A shorter particle-category bar** (the owner, 2026-11-24, a screenshot of the 13 drop-downs Leptons … Hypothetical:
    "compacting these a bit more, maybe combining a few or putting these dropdowns under other more general dropdowns").
    Six, each a menu of its groups with headings (the owner: "keep bosons and light separate"): Leptons (leptons,
    neutrinos), Hadrons (nucleons, mesons, baryons, resonances, multiquarks), Nuclei (light nuclei, exotic atoms and
-   hypernuclei), Bosons, Light, and Antimatter and hypothetical. Waiting for "build it". (1× stays 916 fs/s: the owner,
+   hypernuclei), Bosons, Light, and Antimatter and hypothetical. Built in 1.39.1. (1× stays 916 fs/s: the owner,
    "keep the speed how it is".)
 108. **More hypothetical particles** (the owner, 2026-11-24: "add a few more hypotheticals, like sterile neutrinos and any
    other interesting ones you can find"). Proposed, each at today's experimental limits (to be checked when built), in
@@ -4744,13 +4784,14 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    unconfirmed), a gluino in an R-hadron (a long-lived supersymmetric particle dressed in quarks, slowing in matter) and
    the neutralino it ends as, a Z′ (a heavy Z, above 5 TeV, decaying to lepton pairs), a leptoquark (decaying to a lepton
    and a quark jet), a millicharged particle (charge ~10⁻³ e: barely ionizing), and a microscopic black hole (TeV-scale
-   gravity: it evaporates at once in Hawking radiation, a burst of every kind of particle). Waiting for "build it".
+   gravity: it evaporates at once in Hawking radiation, a burst of every kind of particle). Built in 1.39.1 (not the
+   leptoquark, nor the eV sterile neutrino: see there).
 109. **Click again to reach what lies underneath** (the owner, 2026-11-24, a screenshot of a J/ψ over two big nuclei in
    the particle view: "make it so if there's something on another layer you can click it multiple times to access it. for
    example i can't click this jpsi"). A click picks the nearest thing under the pointer; clicking again on the same spot
    (within a few pixels, without moving away) picks the next one under it, and so on round: nuclei, atoms, electrons,
    unstable particles, placed objects, magnets. A small "2 of 3" note by the pointer says there is more. Also check why the
-   J/ψ is not picked first (smaller and on top, it should win). Flat and 3-D. Waiting for "build it".
+   J/ψ is not picked first (smaller and on top, it should win). Flat and 3-D. Built in 1.39.1.
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,

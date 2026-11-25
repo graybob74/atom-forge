@@ -238,7 +238,7 @@ const PCATS = [
   ['Light', [{ kind: 'gamma' }]],
   ['Antimatter', [{ kind: 'pos' }, SPEC_PBAR, SPEC_NBAR, SPEC_HBAR, { kind: 'atom', Z: 1, A: 2, bare: true, anti: true }, { kind: 'atom', Z: 2, A: 4, bare: true, anti: true }, 'pt']],
   ['Exotic', ['muP', 'muD', 'muT', 'Mu', 'pPs', 'oPs', 'LL6He', 'ahy1_2'].concat([[1, 1], [1, 2], [2, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 6], [8, 7], [14, 13], [20, 19], [39, 49], [82, 125]].map(([z, n]) => hypSpecies(z, n)).filter(Boolean)).map(sp => ({ kind: 'exo', sp }))],
-  ['Hypothetical', ['wimp', 'axion', 'slet', 'mono', 'Sx', 'Sxb', 'Ap'].map(sp => ({ kind: 'exo', sp }))], // (1.39, item 103: not found; their numbers are the experiments' limits or a model's)
+  ['Hypothetical', ['wimp', 'neut', 'axion', 'nuS', 'HNL', 'slet', 'mono', 'Sx', 'Sxb', 'G2370', 'Rg', 'Ap', 'Zp', 'mCP', 'BH'].map(sp => ({ kind: 'exo', sp }))], // (1.39, item 103: not found; their numbers are the experiments' limits or a model's)
 ];
 /* Type-to-find: every particle of the menus, matched on its symbol, its name, its id and the spelled-out Greek. */
 const PF_GREEK = [['lambda', 'Λ'], ['sigma', 'Σ'], ['xi', 'Ξ'], ['omega', 'Ω'], ['delta', 'Δ'], ['pion', 'π'], ['pi', 'π'], ['rho', 'ρ'], ['phi', 'φ'], ['eta', 'η'], ['kaon', 'K'], ['muon', 'μ'], ['mu', 'μ'], ['tau', 'τ'], ['nu', 'ν'], ['neutrino', 'ν'], ['gamma', 'γ'], ['photon', 'γ'], ['alpha', 'α'], ['anti', '̄'], ['bar', '̄']];
@@ -1799,9 +1799,9 @@ const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', '
 const QV = { subj: null, key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
 function qSubject(p, X) { // what to look inside: { key, content, name, note }
   if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck || XP[X.o.sp].hyp || XP[X.o.sp].hypN)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
-  if (X && X.kind === 'exo' && XP[X.o.sp].ew) return { key: 'x' + X.o.id, boson: true, higgs: X.o.sp === 'H0' }; // (W and Z: fundamental, 1.27; the Higgs boson, feature 25)
   if (X && X.kind === 'exo' && X.o.sp === 'slet') { const A = X.o.A || XP.slet.B; return { key: 'x' + X.o.id + 'A' + A, content: sletQuarks(A, X.o.q), o: X.o, slet: A, head: `Inside its ${3 * A} quarks` }; } // (1.39.1 item 104)
-  if (X && X.kind === 'exo' && XP[X.o.sp].hypo && !Q_CONTENT[X.o.sp]) return { key: 'x' + X.o.id, fund: X.o.sp }; // (WIMP, axion, monopole, dark photon: nothing inside, 1.39.1)
+  if (X && X.kind === 'exo' && XP[X.o.sp].hypo && !Q_CONTENT[X.o.sp]) return { key: 'x' + X.o.id, fund: X.o.sp }; // (WIMP, axion, monopole, dark photon …: nothing inside; before the W and Z: the Z′, 1.39.1)
+  if (X && X.kind === 'exo' && XP[X.o.sp].ew) return { key: 'x' + X.o.id, boson: true, higgs: X.o.sp === 'H0' }; // (W and Z: fundamental, 1.27; the Higgs boson, feature 25)
   if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c, o: X.o } : { key: 'x' + X.o.id, lepton: true }; }
   if (!p || p.k !== NUC || p.Z + p.N < 1) return null;
   if (p.mu) return { key: 'mu' + p.id, lepton: true, mu: true }; // (muonium: its nucleus is a μ⁺, a lepton with no quarks; it was shown as hydrogen's proton, uud, 1.26 bug fix)
@@ -1873,6 +1873,16 @@ function qNoteMany() {
   return `A ${kind}: ${list}; charges add to ${cs}. The colours add to colourless, as in every hadron. ${how}`;
 }
 const FUND_NOTE = {
+  nuS: 'Nothing: a sterile neutrino would be fundamental, a fourth neutrino that feels no force but gravity. Hypothetical.',
+  HNL: 'Nothing: a heavy neutral lepton would be fundamental, a lepton like the neutrino, much heavier. Hypothetical.',
+  neut: 'Nothing: the neutralino would be fundamental, a mix of the supersymmetric partners of the photon, Z and Higgs. Hypothetical.',
+  Zp: 'Nothing: a Z′ would be fundamental, the carrier of a new force, as the Z is of the weak force. Hypothetical.',
+  mCP: 'Nothing: a millicharged particle would be fundamental, with a charge no combination of quarks can make. Hypothetical.',
+  mCPb: 'Nothing: a millicharged particle would be fundamental. Hypothetical.',
+  BH: 'A black hole: its mass is inside its horizon, here about 10⁻¹⁹ m across; it is hot (hundreds of GeV) and evaporates at once. Hypothetical.',
+  G2370: 'No quarks: gluons only, two or three bound by the colour charge they carry themselves (photons, uncharged, cannot do that). Whether the η(2370) is this, or a quark–antiquark state mixed with it, is not settled.',
+  Rg: 'A gluino (supersymmetry’s partner of the gluon, 2.3 TeV) with an up quark and a down antiquark around it, as a meson: the quarks carry the charge, +1. Hypothetical.',
+  Rgb: 'A gluino with an up antiquark and a down quark around it. Hypothetical.',
   wimp: 'Nothing, as far as anyone supposes: a WIMP would be a new fundamental particle, like the electron, with no quarks and no strong force; it touches matter only through the weak force (or something as weak). Hypothetical.',
   axion: 'Nothing: an axion would be a fundamental particle, a ripple of a new field (proposed to explain why the strong force keeps time symmetry), far lighter than an electron. Hypothetical.',
   Ap: 'Nothing: a dark photon would be fundamental, as the photon is, a carrier of a new force, with a small mass, that mixes a little with light. Hypothetical.',
@@ -1996,7 +2006,8 @@ function qSnap(q) {
   renderInspect();
 }
 /* A photon, neutrino or unstable particle picked with the Inspect tool (R.selX: { kind: exo | flight | ray, o }). */
-const XP_NAME = { X3872: 'X(3872): a charm tetraquark', Tcc: 'Tcc(3875)⁺: a double-charm tetraquark', Tccb: 'Anti-Tcc(3875)⁻', LL6He: 'Double-Λ hypernucleus ⁶ΛΛHe', ahy1_2: 'Antihyperhydrogen-4',
+const XP_NAME = { nuS: 'Sterile neutrino (hypothetical dark matter)', HNL: 'Heavy neutral lepton (hypothetical)', G2370: 'Glueball candidate η(2370) (hypothetical as a glueball)', Rg: 'Gluino R-hadron (hypothetical)', Rgb: 'Anti-R-hadron (hypothetical)', neut: 'Neutralino (hypothetical dark matter)', Zp: 'Z′ boson (hypothetical)', mCP: 'Millicharged particle (hypothetical)', mCPb: 'Millicharged antiparticle (hypothetical)', BH: 'Microscopic black hole (hypothetical)',
+  X3872: 'X(3872): a charm tetraquark', Tcc: 'Tcc(3875)⁺: a double-charm tetraquark', Tccb: 'Anti-Tcc(3875)⁻', LL6He: 'Double-Λ hypernucleus ⁶ΛΛHe', ahy1_2: 'Antihyperhydrogen-4',
   wimp: 'WIMP (hypothetical dark matter)', axion: 'Axion (hypothetical dark matter)', slet: 'Strangelet (hypothetical strange matter)', mono: 'Magnetic monopole (hypothetical)', Sx: 'Sexaquark (hypothetical dark matter)', Sxb: 'Antisexaquark (hypothetical)', Ap: 'Dark photon X17 (hypothetical)',
   Pc4312: 'Pentaquark Pc(4312)⁺', Pc4440: 'Pentaquark Pc(4440)⁺', Pc4457: 'Pentaquark Pc(4457)⁺', Pcs4338: 'Strange pentaquark Pcs(4338)⁰', Pcb4312: 'Antipentaquark P̄c(4312)⁻', Pcb4440: 'Antipentaquark P̄c(4440)⁻', Pcb4457: 'Antipentaquark P̄c(4457)⁻', Pcsb4338: 'Antipentaquark P̄cs(4338)⁰', dstar: 'Hexaquark candidate d*(2380)', Pn: 'Protonium (a proton and an antiproton going round each other)', eaq: 'Hydrated electron (an electron held by the water round it)', pPs: 'Para-positronium (an electron and a positron, spins opposite)', oPs: 'Ortho-positronium (an electron and a positron, spins parallel)', 'Lc+': 'Charmed lambda baryon', 'Lcb-': 'Charmed antilambda', Bs0: 'Strange B meson', Bsb0: 'Strange anti-B meson', Lb0: 'Bottom lambda baryon', Lbb0: 'Bottom antilambda', Jpsi: 'J/psi meson (charmonium)', Ups: 'Upsilon meson (bottomonium)', // (Realistic particles 5, 1.27)
   'W+': 'W⁺ boson (a carrier of the weak force)', 'W-': 'W⁻ boson (a carrier of the weak force)', Z0: 'Z⁰ boson (the neutral carrier of the weak force)', H0: 'Higgs boson (the Higgs field’s particle)', // (1.27; H0: feature 25)
@@ -2012,6 +2023,16 @@ const XP_QUARKS = { X3872: 'c c̄ u ū (four quarks: a D⁰ and a D̄*⁰ barely
   'Sigb-': 'ū ū s̄', 'Sigb+': 'd̄ d̄ s̄', Xib0: 'ū s̄ s̄', 'Xib+': 'd̄ s̄ s̄', 'Omgb+': 's̄ s̄ s̄',
   'Lc+': 'u d c', 'Lcb-': 'ū d̄ c̄', Bs0: 's b̄', Bsb0: 'b s̄', Lb0: 'u d b', Lbb0: 'ū d̄ b̄', Jpsi: 'c c̄', Ups: 'b b̄' }; // (Realistic particles 5, 1.27)
 const XP_ABOUT = {
+  nuS: 'A neutrino that feels no force but gravity, mixing slightly with the others. At 7.1 keV it could be dark matter, decaying (very rarely) to a neutrino and a 3.55 keV X-ray: a line once claimed in galaxy clusters, not seen by XRISM in 2025. The lighter, eV kind was all but ruled out in 2025 (MicroBooNE, KATRIN).',
+  HNL: 'A heavy relative of the sterile neutrino. Partners like it would explain why neutrinos are so light (the seesaw); if it is its own antiparticle it decays to e⁻π⁺ and e⁺π⁻ alike, breaking lepton number.',
+  G2370: 'A particle made of gluons alone, as the theory of the strong force predicts. BESIII found in 2024 that the η(2370) has a glueball’s mass and spin; whether it is one is not settled.',
+  Rg: 'Supersymmetry’s partner of the gluon, long-lived, dressed in quarks: a heavy, slow, charged track. Searched for at the LHC up to 2.3 TeV; it ends as a neutralino and hadrons.',
+  Rgb: 'The R-hadron’s antiparticle.',
+  neut: 'The lightest supersymmetric particle: stable, neutral, a classic WIMP. It touches nuclei as the WIMP does here.',
+  Zp: 'A heavier copy of the Z boson, predicted by many unified theories. None below 5.5 TeV (ATLAS, 2026); it would decay as the Z does.',
+  mCP: 'A particle with a thousandth of the electron’s charge: barely ionizing, nearly invisible. Some dark sectors predict them.',
+  mCPb: 'The millicharged particle’s antiparticle.',
+  BH: 'If gravity grows strong at TeV energies (extra dimensions), colliders could make black holes. One evaporates at once in Hawking radiation, every kind of particle at once. None seen below about 11 TeV (CMS, 2026).',
   X3872: 'The first exotic charm meson (Belle, 2003): too heavy and too narrow for a plain c c̄ pair. It sits right at the D⁰D̄*⁰ threshold.',
   Tcc: 'Two charm quarks and two light antiquarks (LHCb, 2021): the longest-lived exotic hadron known, 0.36 keV under the D*⁺D⁰ threshold.',
   Tccb: 'The antiparticle of the Tcc⁺.',
@@ -2563,7 +2584,7 @@ function renderData() {
    its name, half-life and decay, how many, and the event that first made it; then the unstable particles. */
 const PART_NAMES = { 'pi+': 'charged pion', 'pi-': 'charged pion', pi0: 'neutral pion', 'mu-': 'muon', 'mu+': 'antimuon', 'K+': 'charged kaon', 'K-': 'charged kaon',
   K0S: 'neutral kaon (short-lived)', K0L: 'neutral kaon (long-lived)', eta: 'eta meson', Lam: 'lambda baryon', Lamb: 'antilambda', 'tau-': 'tau lepton', 'tau+': 'antitau',
-  'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega', 'W+': 'W boson', 'W-': 'W boson', Z0: 'Z boson', H0: 'Higgs boson', X3872: 'X(3872) tetraquark', Tcc: 'Tcc tetraquark', Tccb: 'Tcc tetraquark', LL6He: 'double hypernucleus', ahy1_2: 'antihyperhydrogen-4', wimp: 'WIMP', axion: 'axion', slet: 'strangelet', mono: 'magnetic monopole', Sx: 'sexaquark', Sxb: 'antisexaquark', Ap: 'dark photon' }; // (W, Z: 1.27; H0: feature 25; 1.39)
+  'Sig+': 'sigma baryon', 'Sig-': 'sigma baryon', Xi0: 'xi baryon', 'Xi-': 'xi baryon', 'Omg-': 'omega baryon', 'Sigb-': 'antisigma', 'Sigb+': 'antisigma', Xib0: 'antixi', 'Xib+': 'antixi', 'Omgb+': 'antiomega', 'W+': 'W boson', 'W-': 'W boson', Z0: 'Z boson', H0: 'Higgs boson', nuS: 'sterile neutrino', HNL: 'heavy neutral lepton', G2370: 'glueball', Rg: 'R-hadron', Rgb: 'R-hadron', neut: 'neutralino', Zp: 'Z prime', mCP: 'millicharged', mCPb: 'millicharged', BH: 'black hole', X3872: 'X(3872) tetraquark', Tcc: 'Tcc tetraquark', Tccb: 'Tcc tetraquark', LL6He: 'double hypernucleus', ahy1_2: 'antihyperhydrogen-4', wimp: 'WIMP', axion: 'axion', slet: 'strangelet', mono: 'magnetic monopole', Sx: 'sexaquark', Sxb: 'antisexaquark', Ap: 'dark photon' }; // (W, Z: 1.27; H0: feature 25; 1.39)
 function renderMade() {
   const M = W.made, sec = $('dMadeSec');
   const nuc = M ? [...M.nuc.values()] : [], part = (M ? [...(M.lep ? M.lep.values() : []), ...M.part.values()] : []), nus = M && M.nu ? [...M.nu.values()] : [];

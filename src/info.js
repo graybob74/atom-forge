@@ -170,6 +170,13 @@ const P_INFO = {
   Ps: ['An electron and a positron orbiting each other, an atom with no nucleus, first made in 1951. It annihilates into gamma rays in 0.1 ns or 142 ns, depending on its spins.', 'Positronium'],
   Mu: ['An antimuon with an electron around it, a light isotope of hydrogen, first made in 1960. It lives 2.2 µs and is used to probe magnetism in materials.', 'Muonium'],
   penta: ['Five quarks bound together: four quarks and an antiquark. Allowed by the quark model since 1964 but only found in 2015, by CERN’s LHCb experiment, in the decays of Λb baryons; whether they are one bag or a baryon and a meson stuck together is still debated.', 'Pentaquark'],
+  sterile: ['A neutrino that does not feel the weak force: only gravity, and mixing with the other three. Heavy ones could be dark matter or explain the neutrinos’ tiny masses.', 'Sterile_neutrino'],
+  glue: ['A particle of gluons alone, which the theory of the strong force predicts; candidates are seen, none confirmed.', 'Glueball'],
+  rhad: ['A long-lived supersymmetric particle (a gluino or squark) bound with ordinary quarks.', 'R-hadron'],
+  neut: ['The lightest supersymmetric particle in many models: neutral, stable, a dark-matter candidate.', 'Neutralino'],
+  zprime: ['A heavy neutral boson of a new force, predicted by many extensions of the Standard Model.', 'W%E2%80%B2_and_Z%E2%80%B2_bosons'],
+  mcp: ['A particle with a charge far smaller than the electron’s, predicted by some dark-sector models.', 'Minicharged_particle'],
+  mbh: ['A black hole small enough to be made in a collider, if gravity is strong at TeV energies; it would evaporate at once.', 'Micro_black_hole'],
   tetra: ['Four quarks bound together: two quarks and two antiquarks. The X(3872), found in 2003, was the first; LHCb’s Tcc⁺ (2021) holds two charm quarks.', 'Tetraquark'],
   wimp: ['A weakly interacting massive particle: a heavy dark-matter candidate. Xenon detectors deep underground watch for the nuclear recoil one would cause; none seen yet.', 'Weakly_interacting_massive_particle'],
   axion: ['A very light particle proposed in 1977 to explain why the strong force keeps time symmetry; also a dark-matter candidate. Searches turn axions into photons with strong magnets.', 'Axion'],
@@ -187,6 +194,7 @@ function infoKeyX(sp) {
   const d = XP[sp]; if (!d) return null;
   if (d.hyp) return 'hy'; if (d.ps) return 'Ps'; if (d.pn) return 'Pn'; if (d.aq) return 'eaq'; if (d.atom) return 'muP'; if (d.stuck) return 'muHe';
   if (sp === 'Mu') return 'Mu';
+  if (sp === 'nuS' || sp === 'HNL') return 'sterile'; if (sp === 'G2370') return 'glue'; if (sp === 'Rg' || sp === 'Rgb') return 'rhad'; if (sp === 'neut') return 'neut'; if (sp === 'Zp') return 'zprime'; if (sp === 'mCP' || sp === 'mCPb') return 'mcp'; if (sp === 'BH') return 'mbh'; // (1.39.1)
   if (sp === 'X3872' || sp === 'Tcc' || sp === 'Tccb') return 'tetra'; if (sp === 'wimp' || sp === 'axion') return sp; if (sp === 'slet') return 'slet'; if (sp === 'mono') return 'mono'; if (sp === 'Ap') return 'dphot'; if (sp === 'Sx' || sp === 'Sxb') return 'hexa'; if (sp === 'LL6He' || sp === 'ahy1_2') return 'hy'; // (1.39)
   if (sp.startsWith('Pc')) return 'penta'; if (sp === 'dstar') return 'hexa';
   const F = [['mu', 'mu'], ['tau', 'tau'], ['pi', 'pi'], ['Ks', 'Ks'], ['K', 'K'], ['eta', 'eta'], ['rho', 'rho'], ['omega', 'omega'], ['phi', 'phi'], ['Dpp', 'Delta'], ['Dp', 'Delta'], ['D0', 'Delta'], ['Dm', 'Delta'], ['Dbmm', 'Delta'], ['Dbm', 'Delta'], ['Db0', 'Delta'], ['Dbp', 'Delta'],

@@ -94,12 +94,28 @@ Object.assign(XP, {
   mono: { lab: 'monopole', m: 1e7, q: 0, B: 0, tau: Infinity, col: [255, 90, 255], cc: 'mono', hypo: true, dark: 'mono', strong: false, dec: [] },
   Sx: { sym: 'S', lab: 'S (uuddss)', m: 1880, q: 0, B: 2, tau: Infinity, col: [200, 200, 255], cc: 'Sxb', hypo: true, strong: false, dec: [] },
   Ap: { lab: 'A′(17)', m: 16.70, q: 0, B: 0, tau: 1.62e-14, col: [190, 120, 255], cc: 'Ap', hypo: true, dec: [[1, ['e+', 'e-']]] },
+  /* (1.39.1 item 108; the owner: "add a few more hypotheticals, like sterile neutrinos and any other interesting ones you
+     can find") At today's limits: a 7.1 keV sterile neutrino, decaying to ν γ (the 3.55 keV line; XRISM 2025: Γ < 1.0×10⁻²⁷
+     s⁻¹, so τ at 10²⁷ s); a 1 GeV heavy neutral lepton (Majorana, mixing |U_e|² = 10⁻⁹, near the limits: τ ≈ 3 ms, an
+     estimate); the glueball candidate η(2370) (PDG 2025: 2377 MeV, 148 MeV wide, 0⁻⁺ as BESIII found in 2024; seen in K K̄ π,
+     π π η, its shares not measured); a gluino R-hadron (g̃ u d̄, 2.3 TeV, just above ATLAS's 2.27 TeV for 30 ns; it decays to
+     hadrons and a 100 GeV neutralino); the neutralino (a WIMP: recoils as the WIMP's); a Z′ (6 TeV, above ATLAS's 5.5 TeV for
+     the sequential model, decaying as a Z, 3.1% wide); a millicharged particle (charge 0.001 e, 100 MeV); a microscopic black
+     hole (12 TeV, above CMS's 2026 limits of 8.4–11.4 TeV: it evaporates at once, bhDecay). */
+  nuS: { lab: 'νs', m: 7.1e-3, q: 0, B: 0, tau: 1e27, col: [170, 210, 255], cc: 'nuS', hypo: true, strong: false, dec: [[1, ['nu', 'g']]] },
+  HNL: { lab: 'N', m: 1000, q: 0, B: 0, tau: 3e-3, col: [140, 200, 255], cc: 'HNL', hypo: true, strong: false, dec: [[0.35, ['e-', 'pi+']], [0.35, ['e+', 'pi-']], [0.15, ['nu', 'pi0']], [0.1, ['e-', 'e+', 'nu']], [0.05, ['mu-', 'e+', 'nu']]] },
+  G2370: { sym: 'G', lab: 'η(2370)', m: 2377, w: 148, q: 0, B: 0, tau: 4.45e-24, col: [255, 255, 255], cc: 'G2370', res: true, hypo: true, strong: false, dec: [[0.35, ['K+', 'K-', 'pi0']], [0.15, ['K0S', 'K0S', 'pi0']], [0.25, ['pi0', 'pi0', 'eta']], [0.25, ['pi+', 'pi-', 'eta']]] },
+  Rg: { lab: 'R(g̃ud̄)⁺', m: 2.3e6, q: 1, B: 0, tau: 3e-8, col: [255, 170, 60], cc: 'Rgb', hypo: true, strong: false, bsm: 'rh', dec: [[1, ['neut']]] },
+  neut: { lab: 'χ̃⁰', m: 1e5, q: 0, B: 0, tau: Infinity, col: [160, 160, 210], cc: 'neut', hypo: true, dark: 'wimp', strong: false, dec: [] },
+  Zp: { lab: 'Z′', m: 6e6, w: 1.86e5, q: 0, B: 0, tau: 3.54e-27, col: [205, 150, 255], cc: 'Zp', res: true, ew: true, hypo: true, dec: [[0.033632, ['e-', 'e+']], [0.033662, ['mu-', 'mu+']], [0.033696, ['tau-', 'tau+']], [0.2 / 3, ['nu', 'nub']], [0.2 / 3, ['numu', 'numub']], [0.2 / 3, ['nutau', 'nutaub']]] },
+  mCP: { lab: 'χq', m: 100, q: 0.001, B: 0, tau: Infinity, col: [200, 230, 160], cc: 'mCPb', hypo: true, strong: false, dec: [] },
+  BH: { lab: 'BH', m: 1.2e7, q: 0, B: 0, tau: 1e-27, col: [120, 80, 160], cc: 'BH', res: true, hypo: true, strong: false, bsm: 'bh', dec: [[1, ['g']]] },
 });
 /* A strangelet of A quarks-in-threes (bag model, absolutely stable strange matter assumed): ε₀ = 900 MeV a baryon
    (below the 930 MeV of iron's, which is what would make it stable) and a surface term, MeV. Charge about 0.1·A. */
 function sletMass(A) { return A * (900 + 50 / Math.cbrt(A)); }
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n', d: 'dbar', dbar: 'd', t: 'tbar', tbar: 't', h: 'hbar', hbar: 'h', a: 'abar', abar: 'a' })[t] || t; }
-for (const [k, of, lab] of [['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
   if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰', 'Tcc⁺': 'T̄cc⁻', S: 'S̄' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)
@@ -1108,6 +1124,36 @@ function darkStep(o, d, x0, y0, z0, h) {
    crosses a 40 Å box 15 times in a 0.02 tu step. Returns true if it is gone. */
 /* One kept in a closed box flies in its own short pieces (hypoFly), so it neither shortens the world's step nor holds time
    back: a bouncing axion at c would otherwise slow the whole box ~500 times for as long as it is there. */
+/* (1.39.1 item 108) An R-hadron's gluino decays (g̃ → q q̄ χ̃⁰): the neutralino and hadrons, its charge on them; a
+   microscopic black hole evaporates (Hawking): about ten quanta at once, democratically by their degrees of freedom: the
+   quarks and gluons (about 75%) as hadrons, the rest charged leptons and neutrinos in pairs, photons and W, Z, H (which
+   decay in turn), in an isotropic burst. The books as any decay. */
+function bsmDecay(o) {
+  const d = XP[o.sp], M = o.m;
+  let items;
+  if (d.bsm === 'rh') { const mx = XP.neut.m, h = hadronize(M - mx, 0, d.q > 0 ? 1 : -1); if (!h) { exoLeaves(o); return; } items = [{ t: 'x', sp: 'neut' }, ...h]; }
+  else {
+    const pick = [], pairs = [['e-', 'e+'], ['mu-', 'mu+'], ['tau-', 'tau+']], nus = [['nu', 'nub'], ['numu', 'numub'], ['nutau', 'nutaub']], bos = [['W+', 'W-'], ['Z0'], ['H0'], ['g']];
+    let colour = 0; const n = 10;
+    for (let k = 0; k < n; k++) { const u = rnd(); if (u < 0.75) colour++; else if (u < 0.86) pick.push(...pairs[Math.floor(rnd() * 3)]); else if (u < 0.92) pick.push(...nus[Math.floor(rnd() * 3)]); else pick.push(...bos[Math.floor(rnd() * 4)]); }
+    items = pick.map(item); for (const it of items) if (it.t === 'x' && XP[it.sp] && XP[it.sp].res) it.m = XP[it.sp].m;
+    const rest = M - items.reduce((a, it) => a + massOf(it), 0), h = colour ? hadronize(rest * 0.999, 0, 0) : null; if (h) items.push(...h);
+  }
+  const vs = phaseSpace(M, items.map(massOf)); if (!vs) { exoLeaves(o); return; }
+  const b = o.v / PHYS.C, bx = b * o.ux, by = b * o.uy, bz = W.d3 ? b * o.uz : 0, z = W.d3 ? o.z : 0;
+  const S = nucBegin([]); o.dead = true;
+  const keepTag = _evTag, keepRoot = _evRoot; _evTag = o.ev; _evRoot = o.root || o.ev;
+  const made = spawnItems(items, vs.map(v => toLab(v, bx, by, bz, o.gam)), o.x, o.y, z);
+  _evTag = keepTag; _evRoot = keepRoot;
+  closeEvent(S, made, o.x, o.y, o.KE + o.m * MEV, o.m * MEV);
+  W.count.decay++;
+  const txt = d.bsm === 'rh' ? `${o.lab} → χ̃⁰ + ${items.length - 1} hadrons (its gluino: g̃ → q q̄ χ̃⁰)` : `a ${fmtNum(M / 1e6, 3)} TeV black hole evaporates: ${items.length} particles (${summarize(items)})`;
+  o.fate = `decayed: ${txt}`;
+  flash(o.x, o.y, d.col, d.bsm === 'bh' ? 8 : 4.5, 0.6, z);
+  tally(items, [], `Decay: ${txt}`);
+  nucEvent('pdecay', o.x, o.y, `Decay: ${txt}`, [{ x: o.x, y: o.y, k: 'x', rd: 0.12, lbl: o.lab }], d.bsm === 'bh' ? 'Hawking radiation: hotter the smaller, so a TeV black hole lives about 10⁻²⁷ s (hypothetical: needs gravity strong at TeV energies)' : `mean life ${fmtTime(d.tau)} (hypothetical)`, undefined, z);
+  log('nuc', `Decay: ${txt}`);
+}
 function hypoKept(o) { return !o.xb && W.wall !== 'open' && !!XP[o.sp].hypo; }
 function hypoFly(o, d, h) {
   o._sub = true;
@@ -2423,8 +2469,8 @@ function madeKind(it) {
   if (it.t === 'e') return 'Leptons';
   if (it.t !== 'x') return it.Z + it.N === 1 ? 'Baryons' : 'Nuclei';
   const d = XP[it.sp], q = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[it.sp];
+  if (d.hypo) return 'Hypothetical'; // (1.39; before Bosons: the Z′, 1.39.1)
   if (d.ew) return 'Bosons';
-  if (d.hypo) return 'Hypothetical'; // (1.39)
   if (q) return q.length === 2 ? 'Mesons' : q.length === 3 ? 'Baryons' : 'Multiquarks';
   if (/^(mu|tau)[+-]$/.test(it.sp)) return 'Leptons';
   return 'Exotic';
@@ -2584,6 +2630,7 @@ function spawnItems3(items, moms, x, y, z) {
   return made;
 }
 function decayExo3(o) {
+  if (XP[o.sp].bsm) { bsmDecay(o); return; } // (an R-hadron, a black hole: 1.39.1 item 108)
   if (!XP[o.sp].dec.length) { exoLeaves(o); return; } // (a stable one, 1.39: none come here)
   if (XP[o.sp].ew) { ewDecay(o); return; } // (W and Z bosons, 1.27)
   if (XP[o.sp].ps) { psDecay(o); return; } // (positronium, 1.27)
@@ -3010,6 +3057,7 @@ function exoLeaves(o, where) { // its energy, mass included, leaves the books (i
 }
 const EXO_QUIET = new Set(['pi0', 'eta', 'rho0', 'rho+', 'rho-', 'omega', 'phi', 'Ks+', 'Ks-', 'Ks0', 'Ksb0', 'Dpp', 'Dp', 'D0', 'Dm', 'Dbmm', 'Dbm', 'Db0', 'Dbp']); // decays too common and too quick to caption each one
 function decayExo(o) {
+  if (XP[o.sp].bsm) { bsmDecay(o); return; } // (an R-hadron, a black hole: 1.39.1 item 108)
   if (!XP[o.sp].dec.length) { exoLeaves(o); return; } // (a stable one, 1.39: none come here)
   if (XP[o.sp].ew) { ewDecay(o); return; } // (W and Z bosons, 1.27)
   if (XP[o.sp].ps) { psDecay(o); return; } // (positronium, 1.27)
@@ -4083,6 +4131,7 @@ function hfInto(hq, fx, fixed, mN) { // the heavy hadrons into hadronize's fixed
 RP.ewX = 1;
 const EW = { MZ: 91.1880, GZ: 2.4955, MW: 80.3692, SW2: 0.23153, BEE: 0.033632, BLNU: 0.1086, BLL: 0.033658, EEMIN: 10000, HMIN: 82300 }; // (1.27 bug 17: M_Z, Γ_Z from PDG 2024, it had 91.1876, 2.4952) (GeV; sin²θ_W effective; B(W → ℓν) and B(Z → ℓℓ) for one lepton kind; the gates in MeV)
 const EW_HAD = { 'W+': [[0.3407, 'ud'], [0.3334, 'cs']], Z0: [[0.15121, 'bb'], [0.12032, 'cc'], [0.42758, 'uds']] };
+EW_HAD.Zp = EW_HAD.Z0; // (a sequential Z′ decays as the Z, 1.39.1 item 108)
 const EW_QQ = { ud: 'u d̄', cs: 'c s̄', bb: 'b b̄', cc: 'c c̄', uds: 'u ū, d d̄ or s s̄' }, EW_QQB = { ud: 'd ū', cs: 's c̄' };
 const EW_WW = [[161.3, 3.7], [172.1, 12.0], [182.7, 15.9], [188.6, 16.3], [195.5, 16.9], [206.6, 17.1], [250, 15.4], [350, 11.3], [500, 7.6], [1000, 2.9]]; // pb against √s (GeV)
 const EW_ZZ = [[182.7, 0.26], [188.6, 0.66], [195.5, 0.90], [206.6, 1.05], [250, 1.1], [500, 0.6], [1000, 0.25]];

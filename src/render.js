@@ -1238,6 +1238,26 @@ function exoInside(ctx, o, x, y, c, hx) {
     return nsp.rn + 2;
   }
   if (o.sp === 'slet') return sletInside(ctx, o, x, y, c, b);
+  if (o.sp === 'BH') { // (a microscopic black hole: dark, glowing with its Hawking radiation, 1.39.1)
+    const rb = Math.max(2.5, b * 0.9); ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite([255, 190, 120], Math.max(8, rb * 3.5)), x, y, 0.55); ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,210,150,0.9)'; ctx.lineWidth = Math.max(1, rb * 0.18); ctx.beginPath(); ctx.arc(x, y, rb * 1.15, 0, Math.PI * 2); ctx.stroke();
+    return rb * 1.2 + 2;
+  }
+  if (o.sp === 'G2370') { // (a glueball: gluons only, as loops of colour field, 1.39.1)
+    const rb = b * 1.15; ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 3)), x, y, 0.35); ctx.globalCompositeOperation = 'source-over';
+    ctx.lineWidth = Math.max(1, b * 0.18);
+    for (let k = 0; k < 2; k++) { ctx.strokeStyle = Q_COL[k]; ctx.beginPath(); for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = rb * (0.55 + 0.12 * Math.sin(a * 8 + W.at * 4 + k * 2)), th = a + k * 0.7 + W.at * 0.8; const px = x + r * Math.cos(th), py = y + r * Math.sin(th) * (k ? 0.6 : 1); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); } ctx.stroke(); }
+    return rb + 2;
+  }
+  if (o.sp === 'Rg' || o.sp === 'Rgb') { // (an R-hadron: a heavy gluino at the middle, a quark and an antiquark round it, 1.39.1)
+    const anti = o.sp === 'Rgb', gr = b * 0.7, R0 = b * 1.3, th = W.at * 1.3 + o.id;
+    ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(7, R0 * 2.5)), x, y, 0.35); ctx.globalCompositeOperation = 'source-over';
+    drawSprite(ballSprite('#f0a040', gr), x, y);
+    drawSprite(ballSprite((anti ? Q_ACOL : Q_COL)[0], b * 0.42), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    drawSprite(ballSprite((anti ? Q_COL : Q_ACOL)[1], b * 0.42), x - R0 * Math.cos(th), y - R0 * Math.sin(th));
+    return R0 + 2;
+  }
   if (d.hypo && !(typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp])) { // (WIMP, axion, dark photon, monopole: points, as leptons; a monopole with its field lines, all out (a north pole))
     const rl = Math.max(1.6, electronR() * 1.3);
     ctx.globalCompositeOperation = 'lighter';

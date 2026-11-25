@@ -100,7 +100,7 @@ PARTS.hypo = async (page, check) => {
   const grp = X.PCATS.find(g => g[0] === 'Hypothetical'), sps = grp ? grp[1].map(e => e.sp) : [];
   const names = sps.every(sp => /hypothetical/.test(X.XP_NAME[sp] || '')), kinds = sps.every(sp => X.madeKind({ t: 'x', sp }) === 'Hypothetical');
   const multi = ['X3872', 'Tcc'].every(sp => X.PCATS.find(g => g[0] === 'Multiquarks')[1].some(e => e.sp === sp));
-  check(s.fate === 'left the chamber' && s.KE === 1e9 && sps.length === 7 && names && kinds && multi, `1.39 the sexaquark crosses 40 Å of lead untouched and leaves, stable; the Hypothetical menu holds 7, each named "hypothetical" and listed so in Made here; the tetraquarks are under Multiquarks`,
+  check(s.fate === 'left the chamber' && s.KE === 1e9 && sps.length === 15 && names && kinds && multi, `1.39 the sexaquark crosses 40 Å of lead untouched and leaves, stable; the Hypothetical menu holds 15 (7 in 1.39.0), each named "hypothetical" and listed so in Made here; the tetraquarks are under Multiquarks`,
     `1.39 hypo: Sx dead ${s.dead} KE ${s.KE}, ${sps}, names ${names} kinds ${kinds} multi ${multi}`);
 };
 PARTS.page = async (page, check) => {
@@ -505,6 +505,35 @@ PARTS.mass = async (page, check) => { // (1.39.1 item 106: masses in u, MeV/c²,
   const ok = /^12 u/.test(r.auto[0]) && /3,097 MeV\/c²/.test(r.auto[1]) && /^12 u/.test(r.u[0]) && /3\.32\d* u/.test(r.u[1]) && /11\.17\d* GeV\/c²/.test(r.MeV[0]) && /3,097 MeV\/c²/.test(r.MeV[1]);
   check(ok, `1.39.1 Settings → masses in: as fits (carbon ${r.auto[0]}, J/ψ ${r.auto[1]}), u (${r.u[0]}, ${r.u[1]}), MeV/c² (${r.MeV[0]}, ${r.MeV[1]})`, `1.39.1 mass: ${JSON.stringify(r)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39.1 mass errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
+PARTS.more = async (page, check) => { // (1.39.1 item 108: more hypothetical particles)
+  const res = {}; let bk = 0, chg = true;
+  for (const d3 of [false, true]) {
+    const X = load('all', { seed: 5 }), W = X.W, BKx = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc;
+    for (const sp of ['nuS', 'HNL', 'G2370', 'Rg', 'Rgb', 'Zp', 'BH']) {
+      let n = 0, fate = '';
+      for (let i = 0; i < 4; i++) {
+        (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build(); W.decayOn = false; W.gamma = 0;
+        const o = X.addExo(sp, 0, 0, 1e6, 1, 0, X.XP[sp].res ? X.XP[sp].m : undefined, 0, 0), e0 = BKx();
+        const Q = () => { let q = 0; for (const e of W.exo) if (!e.dead) q += e.q; for (const p of W.parts) if (!p.dead) q += p.k === X.NUC ? (p.anti ? -1 : 1) * p.Z - (p.ne || 0) : p.k === X.ELEC ? -1 : 1; return q; };
+        const q0 = Q(); if (d3) X.decayExo3(o); else X.decayExo(o);
+        if (Math.abs(Q() - q0) > 1e-9) chg = false; bk = Math.max(bk, Math.abs(BKx() - e0) / (X.XP[sp].m * 1e6)); n += W.exo.filter(e => !e.dead).length; fate = o.fate || '';
+      }
+      if (!d3) res[sp] = [Math.round(n / 4), fate.replace('decayed: ', '').slice(0, 50)];
+    }
+  }
+  // the neutralino recoils as a WIMP; a millicharged particle barely ionizes (10⁻⁶ of a proton's loss at the same speed)
+  const X = load('all', { seed: 2 }), W = X.W; let hit = 0;
+  for (let k = 0; k < 40; k++) { X.PRESETS.empty.build(); W.decayOn = false; W.gamma = 0; X.DKM.boost = 1e40; const t = X.addAtom('Xe', 0, 0, { A: 131 }); t.vx = t.vy = 0; X.step(1e-9);
+    const o = X.addExo('neut', 3, 0.2, 1e4, 1, 0), c0 = W.count.wimp || 0; X.wimpStep(o, -3, 0.2, 0); if ((W.count.wimp || 0) > c0) hit++; }
+  const loss = (sp) => { const Y = load('all', { seed: 3 }), V = Y.W; Y.PRESETS.empty.build(); V.decayOn = false; V.gamma = 0;
+    for (let x = -16; x <= 16; x += 4) for (let y = -2; y <= 2; y += 2) { const p = Y.addAtom('Si', x, y); p.vx = p.vy = 0; }
+    V.wall = 'open'; Y.forcesNoEvents(); V.fSpawn = V.spawned; Y.step(1e-9); const o = Y.addExo(sp, -19, 0, 2e5, 1, 0), K0 = o.KE; for (let s = 0; s < 400 && !o.dead && o.x < 18; s++) Y.step(0.002); return K0 - o.KE; };
+  const lm = loss('mCP'), lp = loss('pi+');
+  const Y = load('all', { seed: 1 }), grp = Y.PCATS.find(g => g[0] === 'Hypothetical')[1].map(e => e.sp), kinds = ['Zp', 'BH', 'nuS'].every(sp => Y.madeKind({ t: 'x', sp }) === 'Hypothetical');
+  check(chg && bk < 1e-12 && hit === 40 && lp > 0 && lm <= lp * 1e-4 && grp.length === 15 && kinds,
+    `1.39.1 more hypothetical particles, each decaying with charge kept and the books exact (to ${bk.toExponential(0)} of its mass), flat and 3-D: ${Object.entries(res).map(([k, v]) => `${k} → ${v[1]}${v[0] > 3 ? ` (${v[0]} made)` : ''}`).join('; ')}; the neutralino recoils off xenon as a WIMP; a millicharged particle loses ${lm < 1e-3 ? "nothing measurable" : X.fmtE(lm)} where a pion loses ${X.fmtE(lp)}; Hypothetical holds 15, listed so in Made here (the Z′ too)`,
+    `1.39.1 more: charge ${chg} books ${bk} hit ${hit} loss ${lm}/${lp} grp ${grp.length} kinds ${kinds} ${JSON.stringify(res)}`);
 };
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
