@@ -4705,9 +4705,10 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    MeV/c² for particles. Waiting for "build it".
 107. **A shorter particle-category bar** (the owner, 2026-11-24, a screenshot of the 13 drop-downs Leptons … Hypothetical:
    "compacting these a bit more, maybe combining a few or putting these dropdowns under other more general dropdowns").
-   Proposal: five, each a menu of its groups with headings: Leptons (leptons, neutrinos), Hadrons (nucleons, mesons,
-   baryons, resonances, multiquarks), Nuclei (light nuclei, exotic atoms and hypernuclei), Forces and light (bosons,
-   light), and Antimatter and hypothetical. Waiting for "build it".
+   Six, each a menu of its groups with headings (the owner: "keep bosons and light separate"): Leptons (leptons,
+   neutrinos), Hadrons (nucleons, mesons, baryons, resonances, multiquarks), Nuclei (light nuclei, exotic atoms and
+   hypernuclei), Bosons, Light, and Antimatter and hypothetical. Waiting for "build it". (1× stays 916 fs/s: the owner,
+   "keep the speed how it is".)
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
