@@ -295,6 +295,12 @@
           <canvas class="chart graph" id="chG" aria-label="The chosen quantities over time"></canvas>
           <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" id="gCsv">Export CSV</button><button class="btn small" id="gClr">Clear</button><span class="note" id="gNote"></span></div>
         </section>
+        <section class="group" id="dFeySec" hidden>
+          <h3>Feynman diagram</h3>
+          <div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" id="feyPrev" aria-label="An earlier event">◀</button><button class="btn small" id="feyNext" aria-label="A later event">▶</button><span class="note" id="feyWhich"></span></div>
+          <canvas class="chart" id="chFey" aria-label="A Feynman diagram of the event"></canvas>
+          <p class="note" id="feyNote"></p>
+        </section>
         <section class="group" id="dZsSec" hidden>
           <h3>The Z line shape (energy scan)</h3>
           <canvas class="chart" id="chZs" aria-label="The measured cross section for e⁺e⁻ → Z → hadrons against the collision energy"></canvas>

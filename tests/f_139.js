@@ -762,6 +762,33 @@ PARTS.imass = async (page, check) => { // (1.39.3 item 116: the invariant mass o
   }
   check(ok, `1.39.3 pair masses of leptons and photons: the Z's e⁺e⁻ and μ⁺μ⁻ at 91 GeV (${r.flat.nZ} pairs), the J/ψ's at 3.1 GeV, the π⁰'s γγ at 135 MeV, flat and 3-D`, `1.39.3 imass: ${JSON.stringify(r)}`);
 };
+PARTS.fey = async (page, check) => { // (1.39.3 item 117: Feynman diagrams of events)
+  const X = load('all', { seed: 1 });
+  const want = { // text → [force (start), carrier, shape]
+    'Decay: n → p + e⁻ + ν̄ₑ': ['weak', 'W⁻', 'decay'], 'β⁻ decay: ¹⁴C → ¹⁴N + e⁻ + ν̄ₑ': ['weak', 'W⁻', 'decay'], 'Decay: Λ → p + π⁻': ['weak', 'W⁻', 'decay'],
+    'Decay: μ⁻ → e⁻ + ν̄ₑ + νμ': ['weak', 'W⁻', 'decay'], 'Decay: π⁺ → μ⁺ + νμ': ['weak', 'W⁺', 'annih1'], 'Decay: π⁰ → 2γ': ['electromagnetic', null, 'loop'],
+    'Decay: J/ψ → e⁻ + e⁺': ['electromagnetic', 'γ', 'annih1'], 'Decay: Z⁰ → u ū, d d̄ or s s̄: two jets, 22 hadrons': ['weak', null, 'emit0'], 'Decay: ρ⁰ → π⁺ + π⁻': ['strong', null, 'emit'],
+    'e⁻ + e⁺ → μ⁻ + μ⁺': ['electromagnetic', 'γ', 's'], 'e⁺ hits the wall → 2γ': ['electromagnetic', 'e', 'tt'], 'e⁻ + e⁺ → Z⁰': ['weak', null, 'merge'],
+    'WIMP recoil: χ + Xe → χ + Xe': ['unknown', '?', 't'], 'p̄ + p → 2π⁺ + 2π⁻ + π⁰': ['strong', null, 'blob'], 'n + ¹²C → ¹²C + n': ['strong', 'g', 't'], 'α + ¹²C → ¹²C + α': ['electromagnetic', 'γ', 't'],
+  };
+  const bad = [];
+  for (const [t, [fo, me, to]] of Object.entries(want)) { const f = X.feyParse(t), P = f && X.feyPlan(f); if (!P || !P.force.startsWith(fo) || P.med !== me || P.topo !== to) bad.push(`${t}: ${JSON.stringify(P)}`); }
+  // a run records them: the Z factory's
+  const Y = load('all', { seed: 5 }), V = Y.W; Y.PRESETS.lep.build(); V.slowmo = false; for (let f = 0; f < 600; f++) Y.simFrame(1 / 60, 50);
+  const rec = (V.fey || []).length, drawn = (V.fey || []).filter(e => Y.feyParse(e.text)).length;
+  // the page: drawn without errors, and the arrows step through them
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const pg = await page.evaluate(async () => {
+    const w = (ms) => new Promise(r => setTimeout(r, ms)); loadPreset('empty'); setRunning(false);
+    W.fey = ['Decay: n → p + e⁻ + ν̄ₑ', 'e⁻ + e⁺ → μ⁻ + μ⁺', 'Decay: π⁰ → 2γ'].map(text => ({ kind: 'decay', text, sub: '', t: 0 })); FEY.follow = true;
+    showTab('data', true); renderData(); await w(100); const o = { hidden: $('dFeySec').hidden, a: $('feyWhich').textContent, n1: $('feyNote').textContent };
+    $('feyPrev').click(); await w(50); o.b = $('feyWhich').textContent; o.n2 = $('feyNote').textContent; return o;
+  });
+  if (own) { if (own.errors.length) check(false, '', '1.39.3 fey page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+  const pOk = !pg.hidden && /3 of 3/.test(pg.a) && /2 of 3/.test(pg.b) && /Force: electromagnetic/.test(pg.n1) && /μ⁻ \+ μ⁺/.test(pg.n2);
+  check(!bad.length && rec > 5 && drawn === rec && pOk, `1.39.3 Feynman diagrams: ${Object.keys(want).length} processes get their force, carrier and shape (β decay through a W⁻, J/ψ → e⁺e⁻ through a photon, π⁰ → γγ a loop …); the Z factory recorded ${rec} events, all drawable; the Data tab steps through them`,
+    `1.39.3 fey: ${bad.join(' | ')} rec ${rec} drawn ${drawn} page ${JSON.stringify(pg)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

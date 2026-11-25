@@ -1093,6 +1093,7 @@ function nucEvent(kind, x, y, text, ghosts, sub, nuc, z = 0) { // (z: where in d
   if (nuc && nuc.Z0 !== undefined && nuc.Z1 !== undefined) chainEdge(nuc.Z0, nuc.N0, nuc.Z1, nuc.N1, nuc.mode, nuc.anti); // (a decay: a step on the chart of nuclides)
   if (nuc && nuc.Z1 !== undefined && nuc.Z1 + nuc.N1 > 0) noteMade([{ Z: nuc.Z1, N: nuc.N1, anti: nuc.anti }], [], text);
   W.events.push({ kind, x, y, z, text, sub: sub || '', ghosts: ghosts || [], t0: W.rt, nuc: nuc || null });
+  if (text && text.includes('→')) { const F = W.fey || (W.fey = []); F.push({ kind, text, sub: sub || '', t: W.t }); if (F.length > 40) F.shift(); } // (the Feynman diagrams' record, Data tab, 1.39.3 item 117)
   if (W.events.length > 30) W.events.splice(0, W.events.length - 30);
   const rec = W.evRecent;
   rec.push(W.rt);
@@ -9405,7 +9406,7 @@ function clearWorld() {
   _Tb = 0; // (a new world: the bath it has followed is its own)
   W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
   if (PI.cap) { PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.oz = PI.vz = PI.fz = PI.id = null; PI.cap = 0; PI.n = 0; PIM.valid = false; PIM.vStale = false; PIM.qx = null; PIM.qz = null; } // (quantum nuclei: a new world's rings are made afresh, flat or with depth, 1.24)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.dark = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.nmr = null; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.dark = null; W.fey = []; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.nmr = null; W.at = W.at || 0;
   _rxCache.clear();
 }
 /* Make the (empty) world 3-D, depth d Å (by default as deep as it is high): positions from −d/2 to +d/2 in z, walls on

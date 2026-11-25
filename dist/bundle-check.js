@@ -3985,6 +3985,7 @@ function nucEvent(kind, x, y, text, ghosts, sub, nuc, z = 0) { // (z: where in d
   if (nuc && nuc.Z0 !== undefined && nuc.Z1 !== undefined) chainEdge(nuc.Z0, nuc.N0, nuc.Z1, nuc.N1, nuc.mode, nuc.anti); // (a decay: a step on the chart of nuclides)
   if (nuc && nuc.Z1 !== undefined && nuc.Z1 + nuc.N1 > 0) noteMade([{ Z: nuc.Z1, N: nuc.N1, anti: nuc.anti }], [], text);
   W.events.push({ kind, x, y, z, text, sub: sub || '', ghosts: ghosts || [], t0: W.rt, nuc: nuc || null });
+  if (text && text.includes('→')) { const F = W.fey || (W.fey = []); F.push({ kind, text, sub: sub || '', t: W.t }); if (F.length > 40) F.shift(); } // (the Feynman diagrams' record, Data tab, 1.39.3 item 117)
   if (W.events.length > 30) W.events.splice(0, W.events.length - 30);
   const rec = W.evRecent;
   rec.push(W.rt);
@@ -12297,7 +12298,7 @@ function clearWorld() {
   _Tb = 0; // (a new world: the bath it has followed is its own)
   W.d3 = false; W.box.d = 0; W.box.td = 0; W.box.ud = 0; W.Ez = 0; W.Bax3 = 'z'; // (a new world is flat; world3d makes it 3-D; Ez, Bax3: 3-D fields, 1.24)
   if (PI.cap) { PI.ox = PI.oy = PI.vx = PI.vy = PI.fx = PI.fy = PI.oz = PI.vz = PI.fz = PI.id = null; PI.cap = 0; PI.n = 0; PIM.valid = false; PIM.vStale = false; PIM.qx = null; PIM.qz = null; } // (quantum nuclei: a new world's rings are made afresh, flat or with depth, 1.24)
-  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.dark = null; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.nmr = null; W.at = W.at || 0;
+  W.hist = { t: [], T: [], ion: [], rad: [] }; W.spec = null; W.glow = false; W.glowAcc = 0; W.kc = null; W.dark = null; W.fey = []; W.ramp = null; W.cloud = false; W.pB = null; W.strings = []; W.qgp = []; W.muBound = []; W.lrKnown = false; W.muAtoms = []; W.nmr = null; W.at = W.at || 0;
   _rxCache.clear();
 }
 /* Make the (empty) world 3-D, depth d Å (by default as deep as it is high): positions from −d/2 to +d/2 in z, walls on
@@ -42175,7 +42176,7 @@ function renderData() {
     L.qOut ? ['Carried out of the open box', qs(L.qOut)] : null, ['All together', qs(qb + L.qWall + L.qObj + L.qOut)]].filter(Boolean)
     .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   renderMade();
-  drawSpec(); explainSync(); drawChain(); drawDark(); drawChainMap();
+  drawSpec(); explainSync(); drawChain(); drawDark(); drawFey(); drawChainMap();
   UI.lastMT = m.T; drawTChart(); drawEChart(m.T); drawGraph(); drawPairs(); drawDet(); drawZScan();
   restoreScroll('tp-data');
 }
@@ -45356,6 +45357,8 @@ function grCsv() {
 function grInit() {
   $('gSel').onclick = (e) => { const b = e.target.closest('[data-g]'); if (!b) return; const id = b.dataset.g, sel = grSel(), i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); else sel.push(id); store('graphSel', JSON.stringify(sel.slice(-6))); drawGraph(); };
   bindSeg('segPair', (v) => { UI.pairKey = v; UI.pairKeySet = true; drawPairs(); });
+  $('feyPrev').onclick = () => { FEY.follow = false; FEY.i = Math.max(0, FEY.i - 1); drawFey(); }; // (1.39.3)
+  $('feyNext').onclick = () => { const n = (W.fey || []).length; FEY.i = Math.min(n - 1, FEY.i + 1); FEY.follow = FEY.i >= n - 1 ? true : false; drawFey(); };
   bindSeg('segDet', (v) => { UI.detMode = v; drawDet(); });
   $('detPick').onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) { UI.detSel = +b.dataset.v; drawDet(); } };
   $('detClr').onclick = () => { const scr = W.objs.filter(o => o.kind === 'screen'), ob = scr[UI.detSel || 0]; if (ob) objClearHits(ob); drawDet(); };
@@ -45448,6 +45451,127 @@ function drawZScan() {
   const pk = pts.reduce((m, p) => (p[1] > m[1] ? p : m), [0, 0, 0]);
   $('dZsNote').textContent = `${Z.rec.length.toLocaleString('en-US')} collisions${Z.run ? `, scanning: beams at ${ZSCAN.pts[Z.i]} GeV each (${Z.i + 1} of ${ZSCAN.pts.length})` : ''}. Dots: σ(e⁺e⁻ → Z → hadrons) measured in each 1 GeV bin of the collisions' own √s, the share of collisions that made it times the total cross section there (LEP's events over its luminosity), with its statistical error; ${pk[1] ? `highest ${fmtNum(pk[1], 3)} nb at ${fmtNum(pk[0], 3)} GeV. ` : ''}Line: the model, ${RP.res ? 'with the beams\u2019 own radiation (Resonance widths and heavy flavour on): the peak 30.6 nb at 91.2 GeV, measured at LEP 30.5' : 'Born: the peak 41.5 nb at 91.19 GeV (with the beams\u2019 own radiation, which Resonance widths and heavy flavour turns on, 30.6; measured at LEP 30.5)'}. The Z's width, 2.50 GeV, is what three kinds of light neutrino give.`;
 }
+/* (1.39.3 item 117; the owner: "Feynman diagrams of events") A schematic Feynman diagram of each event the chamber
+   captions (W.fey, kept by nucEvent: the last 40 with an arrow in their text), drawn from what went in and came out
+   (parsed from the caption, "a + b → c + d") and the force, judged from them: neutrinos or a lepton changing kind, the
+   weak force (a W, a Z when nothing changes charge); only leptons and photons, or hadrons giving off photons, the
+   electromagnetic (a photon); hadrons and nuclei only, the strong (a gluon); a W, Z, Higgs or Z′ decaying, the boson
+   itself at one vertex. Topology: a decay, the particle in, a vertex, the one that carries on (its baryon number) out
+   and the force's carrier to a second vertex with the rest; a particle and its antiparticle, the s-channel (both into
+   one vertex, the carrier, the products from the other); two that both come through, the t-channel (the carrier
+   exchanged between them). It is drawn at the level of the particles, not their quarks, and at tree level: a loop
+   (π⁰ → γγ, through a quark triangle) is a shaded blob. Many products are one band ("n hadrons"). */
+const FEY = { i: -1 };
+function feyTok(t) { // ("2π⁰" → two π⁰; "13 hadrons" → one band; "u ū" → two quarks)
+  t = t.trim().replace(/\s*\(.*$/, '').replace(/ in .*$/, ''); if (!t || t === '…') return [];
+  if (/^\S{1,2} \S{1,2}$/.test(t)) return t.split(' '); // (a quark pair: "u ū")
+  const m = /^(\d+)\s*(.+)$/.exec(t); if (!m) return [t];
+  const n = +m[1], l = m[2]; return n <= 3 && !/hadron|jet|pion|meson|particle/.test(l) ? Array(n).fill(l) : [`${n} ${l}`];
+}
+function feyParse(text) {
+  text = text.replace(/e⁺ hits the wall/, 'e⁺ + e⁻');
+  const a = text.indexOf('→'); if (a < 0) return null;
+  let L = text.slice(0, a), Rt = text.slice(a + 1); const c = L.lastIndexOf(': '); if (c >= 0) L = L.slice(c + 2);
+  Rt = Rt.replace(/\s*\(.*$/, '').replace(/[:;,].*$/, '');
+  const ins = L.split(' + ').flatMap(feyTok), outs = Rt.split(' + ').flatMap(feyTok);
+  return ins.length && outs.length && ins.length <= 2 ? { ins, outs } : null;
+}
+const FEY_LEP = /^(e|μ|τ)[⁺⁻]$/, FEY_NU = /^ν/, FEY_BOS = /^(W[⁺⁻]|Z⁰|H⁰|Z′)$/, FEY_Q = /^[udscbt]̄?$/;
+const feyNuc = (l) => /^[⁰¹²³⁴⁵⁶⁷⁸⁹]/.test(l) || /^(α|d|t|h|[A-Z][a-z]?[₀-₉⁺⁻]*)$/.test(l) && !/^(H⁰|W|Z)/.test(l) || /[₀-₉]/.test(l);
+const feyBar = (l) => feyNuc(l) || /^(p|n|Λ|Σ|Ξ|Ω|Δ|N|P|d\*)/.test(l) || /^(p̄|n̄|Λ̄|Σ̄|Ξ̄|Ω̄)/.test(l);
+const FEY_QK = { p: 1, 'p̄': -1, n: 0, 'n̄': 0, d: 1, t: 1, h: 2, 'α': 2, 'Λ': 0, 'Λ̄': 0, 'γ': 0 };
+function feyQ(l) { // (a label's charge: its signs, or a known particle's, or a bare nucleus's Z from its symbol)
+  const sg = (l.match(/⁺/g) || []).length - (l.match(/⁻/g) || []).length; if (sg || /⁰/.test(l)) return sg;
+  if (l in FEY_QK) return FEY_QK[l];
+  const m = /^[⁰¹²³⁴⁵⁶⁷⁸⁹]+([A-Z][a-z]?)$/.exec(l); if (m) { const Z = ELEMENTS.findIndex(e => e && e.sym === m[1]); if (Z > 0) return Z; }
+  return 0;
+}
+function feyAnti(a, b) { const sw = (s) => s.replace(/⁺/g, '\u0001').replace(/⁻/g, '⁺').replace(/\u0001/g, '⁻'); return a !== b && (sw(a) === b || a.replace('̄', '') === b.replace('̄', '') && a.includes('̄') !== b.includes('̄')); }
+let _feyTau = null;
+function feyTau(l) { // (a particle's mean life from its label, for telling a weak decay from a strong one)
+  if (!_feyTau) { _feyTau = new Map(); for (const d of Object.values(XP)) if (d && d.lab && !_feyTau.has(d.lab)) _feyTau.set(d.lab, d.tau); }
+  return _feyTau.get(l);
+}
+function feyPlan(f) {
+  const I = f.ins, O = f.outs, all = I.concat(O), nu = all.some(l => FEY_NU.test(l)), lepOut = O.some(l => FEY_LEP.test(l)), dark = all.some(l => l === 'χ' || l === 'a');
+  const elastic = I.length === 2 && O.length === 2 && I.slice().sort().join() === O.slice().sort().join();
+  if (I.length === 1) {
+    const x = I[0];
+    if (FEY_BOS.test(x)) return { force: x[0] === 'H' ? 'the Higgs boson’s couplings' : x === 'Z′' ? 'a hypothetical force' : 'weak', med: null, topo: 'emit0' };
+    if (x === 'γ') return { force: 'electromagnetic (in a nucleus’s field)', med: null, topo: 'emit0' };
+    if (FEY_LEP.test(x)) { const k = O.findIndex(l => FEY_NU.test(l) && l.includes(x[0])); return k >= 0 ? { force: 'weak', med: feyQ(x) > 0 ? 'W⁺' : 'W⁻', topo: 'decay', carry: k } : { force: 'weak', med: 'W', topo: 'emit0' }; }
+    const tau = feyTau(x), k = feyBar(x) ? O.findIndex(feyBar) : -1, carryQ = k >= 0 ? feyQ(O[k]) : 0, w = feyQ(x) - carryQ;
+    if (O.every(l => l === 'γ')) return { force: 'electromagnetic', med: null, topo: 'loop' };
+    if (!nu && O.length >= 2 && O.filter(l => FEY_LEP.test(l)).length === 2 && !feyQ(x) && O.filter(l => FEY_LEP.test(l)).every(l => l[0] === O.find(q => FEY_LEP.test(q))[0])) return { force: 'electromagnetic', med: 'γ', topo: O.length === 2 ? 'annih1' : 'emit', carry: -1 }; // (J/ψ → e⁺e⁻: through a virtual photon)
+    if (nu || lepOut || (tau > 1e-15 && !O.includes('γ'))) return k >= 0 ? { force: 'weak', med: w > 0 ? 'W⁺' : w < 0 ? 'W⁻' : 'Z⁰', topo: 'decay', carry: k } : { force: 'weak', med: feyQ(x) > 0 ? 'W⁺' : feyQ(x) < 0 ? 'W⁻' : 'W', topo: 'annih1' };
+    if (O.includes('γ')) return { force: 'electromagnetic', med: null, topo: 'emit', carry: k };
+    return { force: feyNuc(x) ? 'strong (nuclear)' : 'strong', med: null, topo: 'emit', carry: k };
+  }
+  if (dark) return { force: 'unknown (hypothetical)', med: '?', topo: 't' };
+  if (elastic) { const neutral = I.some(l => !feyQ(l) && !/^[⁰¹²³⁴⁵⁶⁷⁸⁹]/.test(l) && !/^(α|d|t|h|p)$/.test(l)); return neutral ? { force: 'strong (nuclear)', med: 'g', topo: 't' } : { force: 'electromagnetic (Coulomb)', med: 'γ', topo: 't' }; }
+  const lp = I.every(l => FEY_LEP.test(l)) && feyQ(I[0]) === -feyQ(I[1]);
+  if (lp) {
+    if (O.length === 1) return { force: FEY_BOS.test(O[0]) ? 'weak (electroweak)' : 'electromagnetic', med: null, topo: 'merge' };
+    if (O.every(l => l === 'γ')) return { force: 'electromagnetic', med: I[0][0], topo: 'tt' };
+    return { force: 'electromagnetic (a Z near 91 GeV)', med: 'γ', topo: 's' };
+  }
+  if (nu) return { force: 'weak', med: 'W', topo: 't' };
+  if (O.length === 1) return { force: feyNuc(O[0]) ? 'strong (nuclear)' : 'strong', med: null, topo: 'merge' };
+  return { force: I.some(feyNuc) ? 'strong (nuclear): many nucleons at once' : 'strong', med: null, topo: 'blob' };
+}
+function drawFey() {
+  const F = W.fey || [], sec = $('dFeySec'); sec.hidden = !F.length; if (sec.hidden) return;
+  if (FEY.i < 0 || FEY.i >= F.length || FEY.follow !== false) FEY.i = F.length - 1;
+  const e = F[FEY.i], f = feyParse(e.text);
+  $('feyWhich').textContent = `${FEY.i + 1} of ${F.length}${FEY.i === F.length - 1 ? ' (the latest)' : ''}`;
+  $('feyPrev').disabled = FEY.i <= 0; $('feyNext').disabled = FEY.i >= F.length - 1;
+  const r = chartCtx(chartCv('chFey')); if (!r) return; const [ctx, w, h] = r;
+  if (!f) { ctx.fillStyle = cssVar('--muted'); ctx.font = '12px ' + cssVar('--font-ui'); ctx.fillText('No diagram for this one', 10, 20); $('feyNote').textContent = e.text; return; }
+  const P = feyPlan(f), col = cssVar('--text') || '#ccc', acc = cssVar('--accent'), hot = cssVar('--hot');
+  ctx.lineWidth = 1.6; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.font = '12px ' + cssVar('--font-data'); ctx.textBaseline = 'middle';
+  const line = (x0, y0, x1, y1) => { ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); };
+  const band = (x0, y0, x1, y1) => { ctx.save(); ctx.strokeStyle = acc; ctx.lineWidth = 7; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.restore(); };
+  const leg = (x0, y0, x1, y1, lab) => { if (/^\d+ /.test(lab)) band(x0, y0, x1, y1); else if (lab === 'γ') feyWave(ctx, x0, y0, x1, y1, col); else line(x0, y0, x1, y1); };
+  const lab = (x, y, t, al) => { ctx.fillStyle = col; ctx.textAlign = al; ctx.fillText(t, x, y); };
+  const dot = (x, y) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 3, 0, 2 * Math.PI); ctx.fill(); };
+  const prop = (x0, y0, x1, y1) => { if (P.med === 'g') feyGluon(ctx, x0, y0, x1, y1, hot); else if (P.med === '?' ) { ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = hot; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.restore(); } else feyWave(ctx, x0, y0, x1, y1, hot);
+    ctx.fillStyle = hot; ctx.textAlign = 'left'; ctx.fillText(P.med, (x0 + x1) / 2 + 8, (y0 + y1) / 2 - 8); };
+  const fan = (vx, vy, outs, xR, top, bot) => { const n = outs.length; outs.forEach((o, i) => { const y = n === 1 ? (top + bot) / 2 : top + (bot - top) * i / (n - 1); leg(vx, vy, xR, y, o); lab(xR + 6, y, o, 'left'); }); };
+  const xL = 70, xR = w - 96, yT = 22, yB = h - 22, ym = h / 2, T = P.topo;
+  const blob = (x, y) => { ctx.save(); ctx.fillStyle = acc; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(x, y, 13, 0, 2 * Math.PI); ctx.fill(); ctx.restore(); };
+  const ins2 = (vx, vy) => { leg(xL, yT + 8, vx, vy, f.ins[0]); leg(xL, yB - 8, vx, vy, f.ins[1]); lab(xL - 6, yT + 8, f.ins[0], 'right'); lab(xL - 6, yB - 8, f.ins[1], 'right'); };
+  if (T === 'emit0' || T === 'loop' || T === 'emit') { // (one vertex: the particle in, its products out; a loop, a shaded blob)
+    const vx = w * 0.42; leg(xL, ym, vx, ym, f.ins[0]); lab(xL - 6, ym, f.ins[0], 'right');
+    if (T === 'loop') blob(vx, ym); else dot(vx, ym);
+    if (T === 'emit' && P.carry >= 0) { const c = f.outs[P.carry]; leg(vx, ym, xR, yT + 10, c); lab(xR + 6, yT + 10, c, 'left'); fan(vx, ym, f.outs.filter((_, i) => i !== P.carry), xR, ym + 10, yB); }
+    else fan(vx, ym, f.outs, xR, yT, yB);
+  } else if (T === 'decay') {
+    const carry = f.outs[P.carry], rest = f.outs.filter((_, i) => i !== P.carry), v1x = w * 0.38, v2x = w * 0.62, v2y = ym + (yB - ym) * 0.55;
+    leg(xL, ym, v1x, ym, f.ins[0]); lab(xL - 6, ym, f.ins[0], 'right'); dot(v1x, ym);
+    leg(v1x, ym, xR, yT + 10, carry); lab(xR + 6, yT + 10, carry, 'left');
+    prop(v1x, ym, v2x, v2y); dot(v2x, v2y); fan(v2x, v2y, rest, xR, ym + 8, yB);
+  } else if (T === 's' || T === 'annih1') {
+    const v1x = w * 0.34, v2x = w * 0.6;
+    if (T === 's') ins2(v1x, ym); else { leg(xL, ym, v1x, ym, f.ins[0]); lab(xL - 6, ym, f.ins[0], 'right'); }
+    dot(v1x, ym); prop(v1x, ym, v2x, ym); dot(v2x, ym); fan(v2x, ym, f.outs, xR, yT + 8, yB - 8);
+  } else if (T === 'merge' || T === 'blob') {
+    const vx = w * 0.45; ins2(vx, ym); if (T === 'blob') blob(vx, ym); else dot(vx, ym); fan(vx, ym, f.outs, xR, yT + 8, yB - 8);
+  } else if (T === 'tt') { // (a pair annihilating into two photons: the lepton exchanged between the two vertices)
+    const vx = w * 0.45, vt = yT + 22, vb = yB - 22;
+    leg(xL, yT + 8, vx, vt, f.ins[0]); lab(xL - 6, yT + 8, f.ins[0], 'right'); leg(xL, yB - 8, vx, vb, f.ins[1]); lab(xL - 6, yB - 8, f.ins[1], 'right');
+    dot(vx, vt); dot(vx, vb); line(vx, vt, vx, vb); ctx.fillStyle = col; ctx.textAlign = 'left'; ctx.fillText(f.ins[0].replace(/[⁺⁻]/, ''), vx + 8, ym);
+    leg(vx, vt, xR, yT + 8, f.outs[0]); lab(xR + 6, yT + 8, f.outs[0], 'left'); leg(vx, vb, xR, yB - 8, f.outs[1] || 'γ'); lab(xR + 6, yB - 8, f.outs[1] || 'γ', 'left');
+  } else { // (t-channel: the first in carries on along the top, the second along the bottom, the carrier between)
+    const vx = w * 0.45, vt = yT + 22, vb = yB - 22, outs = f.outs.slice(), i1 = outs.indexOf(f.ins[0]); const top = i1 >= 0 ? outs.splice(i1, 1)[0] : outs.shift();
+    leg(xL, yT + 8, vx, vt, f.ins[0]); lab(xL - 6, yT + 8, f.ins[0], 'right'); dot(vx, vt); leg(vx, vt, xR, yT + 8, top); lab(xR + 6, yT + 8, top, 'left');
+    leg(xL, yB - 8, vx, vb, f.ins[1] || ''); lab(xL - 6, yB - 8, f.ins[1] || '', 'right'); dot(vx, vb);
+    prop(vx, vt, vx, vb); fan(vx, vb, outs.length ? outs : [''], xR, ym + 14, yB - 8);
+  }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  $('feyNote').textContent = `${e.text}. Force: ${P.force}${P.topo === 'tt' ? `, the ${P.med === 'μ' ? 'muon' : P.med === 'τ' ? 'τ' : 'electron'} passed between the two photons` : P.med && P.med !== '?' ? `, carried by ${P.med === 'g' ? 'gluons' : P.med === 'γ' ? 'a photon' : `a ${P.med} boson`}` : ''}. A schematic diagram, drawn at the level of the particles (not their quarks), time running left to right${P.topo === 'loop' ? '; the shaded blob is a loop of quarks' : P.topo === 'blob' ? '; the shaded blob: many particles and forces at once, which no single diagram shows' : ''}.`;
+}
+function feyWave(ctx, x0, y0, x1, y1, c) { const L = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L, n = Math.max(3, Math.round(L / 9)); ctx.strokeStyle = c; ctx.beginPath(); for (let i = 0; i <= 40; i++) { const t = i / 40, a = 4 * Math.sin(t * n * 2 * Math.PI); const x = x0 + ux * L * t - uy * a, y = y0 + uy * L * t + ux * a; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); } ctx.stroke(); }
+function feyGluon(ctx, x0, y0, x1, y1, c) { const L = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L, n = Math.max(4, Math.round(L / 8)); ctx.strokeStyle = c; ctx.beginPath(); for (let i = 0; i <= n * 12; i++) { const t = i / (n * 12), ph = t * n * 2 * Math.PI, s = L * t + 3.5 * Math.cos(ph) - 3.5, a = 5 * Math.sin(ph); const x = x0 + ux * s - uy * a, y = y0 + uy * s + ux * a; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); } ctx.stroke(); }
 /* Pair masses (hep.js PAIRS): the histogram, with the known resonances marked. */
 const PAIR_MARK = { pipi: [['ρ', 775], ['K⁰s', 498]], Kpi: [['K*', 893]], KK: [['φ', 1019]], ee: [['ρ/ω', 775], ['J/ψ', 3097], ['Υ', 9460], ['Z', 91188], ['Z′', 6e6]], mm: [['φ', 1019], ['J/ψ', 3097], ['Υ', 9460], ['Z', 91188], ['Z′', 6e6]], gg: [['π⁰', 135], ['η', 548], ['H', 125200]] }; // (lepton and photon pairs: 1.39.3 item 116)
 function drawPairs() {

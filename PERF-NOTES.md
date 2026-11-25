@@ -2097,6 +2097,19 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   chosen the chart shows the first kind that has pairs. Found on the way: in 3-D the pion and kaon pairs' masses left
   out the z part of the momenta; now included. Measured: 1,200 e⁺e⁻ collisions at the Z peak, 41 e⁺e⁻ and 42 μ⁺μ⁻
   pairs, all in the 85–91 GeV bin. Check: f_139 `imass` (Z, J/ψ and π⁰ peaks in their bins, flat and 3-D).
+- **117, Feynman diagrams of events** (Data → Feynman diagram; ◀ ▶ step through the last 40). `nucEvent` keeps each
+  captioned event with an arrow (`W.fey`); `feyParse` reads what went in and out from the caption ("a + b → c + d",
+  multiplicities expanded up to three, more as one band, "u ū" as two quarks); `feyPlan` judges the force and the
+  shape: a W, Z, Higgs or Z′ decaying, one vertex; a lepton's decay, its line carried on by its own neutrino and a W to
+  the rest; a baryon's or nucleus's weak decay, its line carried on by the baryon, a W⁻ or W⁺ by the charge it lost
+  (labels' charges from their signs, known particles, or a bare nucleus's Z); a meson's weak decay to leptons, the
+  meson into a W; a neutral meson to a lepton pair (J/ψ → e⁺e⁻), a virtual photon; π⁰ → γγ, a loop (a shaded blob);
+  strong decays (ρ, Δ) one vertex, the weak ones told apart by the particle's mean life (> 10⁻¹⁵ s); e⁺e⁻ to a pair,
+  the s-channel through a photon; to two photons, the electron exchanged; elastic scattering, the t-channel (a gluon
+  with a neutron in it, a photon between charges); WIMP recoils a "?"; hadron and nuclear collisions with more
+  products, a blob ("many particles and forces at once, which no single diagram shows"). Drawn at the level of the
+  particles, not their quarks, and said so under each. Check: f_139 `fey` (16 processes, the Z factory's 40 events
+  all drawable, the page's arrows).
 - f_ew's antihydrogen fingerprint updated: 1.39.2's fix (antimatter ions sized as their mirrors) changes that setup's
   run (its ions' contact radius, `ljR`); found here, not caught then because f_ew was not in that release's list.
 - Info pages for each (Ω baryon, Pionium, True muonium, Antiprotonic helium, Diquark for the remnant); the Hypothetical
@@ -4960,13 +4973,13 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 116. **An invariant-mass plot of what is made**: in Made here (or Data), the combined mass of chosen pairs (e⁺e⁻, μ⁺μ⁻,
    γγ, …) as a histogram over a run, so a bump grows at the J/ψ, the Z, the Higgs or a Z′. Built in 1.39.3.
 117. **Feynman diagrams of events**: for a decay, an annihilation, a scattering, the diagram of what happened, drawn from
-   the event the game records (its particles in and out and the force).
+   the event the game records (its particles in and out and the force). Built in 1.39.3.
 118. **More exotic atoms**: pionium (π⁺π⁻, DIRAC at CERN), true muonium (μ⁺μ⁻, not yet seen: labelled), and the
    metastable antiprotonic helium (ASACUSA, microseconds); check first what the antiprotonic atoms and protonium
    already do. Built in 1.39.3.
 119. **More found and predicted hadrons**: the triple-charm Ω_ccc (predicted, not seen: labelled) and the newer
    strange pentaquarks (LHCb's P_ψs^Λ(4338) is in; others since). Built in 1.39.3.
-   Items 112–117 being built for "build it".
+   Items 111–119 built in 1.39.3.
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
