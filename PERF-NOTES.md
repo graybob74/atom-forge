@@ -4718,6 +4718,12 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    the neutralino it ends as, a Z′ (a heavy Z, above 5 TeV, decaying to lepton pairs), a leptoquark (decaying to a lepton
    and a quark jet), a millicharged particle (charge ~10⁻³ e: barely ionizing), and a microscopic black hole (TeV-scale
    gravity: it evaporates at once in Hawking radiation, a burst of every kind of particle). Waiting for "build it".
+109. **Click again to reach what lies underneath** (the owner, 2026-11-24, a screenshot of a J/ψ over two big nuclei in
+   the particle view: "make it so if there's something on another layer you can click it multiple times to access it. for
+   example i can't click this jpsi"). A click picks the nearest thing under the pointer; clicking again on the same spot
+   (within a few pixels, without moving away) picks the next one under it, and so on round: nuclei, atoms, electrons,
+   unstable particles, placed objects, magnets. A small "2 of 3" note by the pointer says there is more. Also check why the
+   J/ψ is not picked first (smaller and on top, it should win). Flat and 3-D. Waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
