@@ -569,6 +569,15 @@ PARTS.cards = async (page, check) => { // (1.39.2: "some of these panels on cert
     `1.39.2 cards: tall ${tall} odd ${odd} ${JSON.stringify(r)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39.2 cards errors: ' + own.errors.join(' | ')); await own.browser.close(); }
 };
+PARTS.anti = async (page, check) => { // (1.39.2: "anti-elements get drawn WAY bigger than they should be")
+  const X = load('all', { seed: 1 }); X.PRESETS.empty.build(); const out = [];
+  for (const [el, k] of [['Cu', 15], ['Fe', 3], ['O', 2], ['Yb', 10]]) {
+    const a = X.addAtom(el, 0, 0, { anti: true }), b = X.addAtom(el, 9, 0); a.ne = a.Z - k; a.q = -k; X.setSize(a); b.ne = b.Z - k; b.q = k; X.setSize(b);
+    out.push([el, k, +a.rd.toFixed(3), +b.rd.toFixed(3), +a.ljR.toFixed(3), +b.ljR.toFixed(3)]);
+  }
+  check(out.every(r => r[2] === r[3] && r[4] === r[5]), `1.39.2 an antimatter ion is the size of its matter twin (anti-Cu missing 15 positrons: ${out[0][2]} Å, as Cu¹⁵⁺; it was 7.33 Å, sized as a −15 anion), drawn and in its forces: ${out.map(r => `${r[0]} ±${r[1]} ${r[2]} Å`).join(', ')}`,
+    `1.39.2 anti: ${JSON.stringify(out)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

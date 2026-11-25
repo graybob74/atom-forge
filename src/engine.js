@@ -401,7 +401,7 @@ function setSize0(p) {
   const el = p.el;
   p.ionic = p.bonds.length === 0 && Math.abs(p.q) >= 1;
   if (p.ionic) {
-    p.ionR = ionicRadius(el, p.q);
+    p.ionR = ionicRadius(el, p.anti ? -p.q : p.q); // (an antimatter ion is its matter twin's mirror: an anti-copper with 15 positrons gone, charge −15, is the size of Cu¹⁵⁺, not of a −15 anion nine times copper's radius; 1.39.2)
     p.ljR = 2 * p.ionR; p.ljE = 0.02;
     p.rd = Math.max(0.28, 0.6 * p.ionR);
   } else {

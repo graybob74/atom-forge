@@ -501,10 +501,10 @@ function saveBtnFace(s) { const on = isoSaved(s); return { on, text: on ? '★ S
 function savedIsoHTML() { // (only those of the element being placed)
   const sp = UI.spec, mine = sp && sp.kind === 'atom' ? MYISO.map((m, i) => [m, i]).filter(([m]) => m.Z === sp.Z && !!m.anti === !!sp.anti) : [];
   if (!mine.length) return '';
-  return `<span class="lbl">Saved</span>` + mine.map(([m, i]) => {
+  return `<span class="lbl">Saved</span><span class="segc">` + mine.map(([m, i]) => {
     const [cls, , long] = isoLife(m.Z, m.A);
     return `<button class="opt iso" data-my="${i}" aria-pressed="${sameSpec(m, UI.spec)}" title="${esc(`${specName(m)}, ${long}. Take it off in Elements…`)}"><i class="life ${cls}" aria-hidden="true"></i>${esc(specLabel(m))}</button>`;
-  }).join('');
+  }).join('') + '</span>';
 }
 /* Decay time covered by one second of watching (one clock: the motion's pace times the decay speed-up). */
 function decayPerSecond() { return W.warp * W.simPerFrame * PHYS.TU_S * 60; }
@@ -528,16 +528,19 @@ function isoPickerHTML(sp) {
     const [cls, short] = isoLife(sp.Z, A);
     return `<button class="opt iso" data-iso="${A}" aria-pressed="${A === sp.A}" title="${esc(nucName(sp.Z, A - sp.Z) + ': ' + short)}"><i class="life ${cls}" aria-hidden="true"></i>${sup(A)}${symHTML(el.sym, sp.anti)}</button>`;
   }).join('');
-  return `<span class="lbl">Isotope</span>${btns}<span class="help">${esc(isoNote(sp.Z, sp.A))}</span>`;
+  return `<span class="lbl">Isotope</span><span class="segc">${btns}</span><span class="help">${esc(isoNote(sp.Z, sp.A))}</span>`;
 }
 
 /* ------------------------------------------------------------------ tool options bar */
 function seg(name, opts, cur) {
-  return `<span class="lbl">${name}</span>` + opts.map(([v, l]) => `<button class="opt" data-v="${esc(v)}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('');
+  return `<span class="lbl">${name}</span><span class="segc">` + opts.map(([v, l]) => `<button class="opt" data-v="${esc(v)}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('') + '</span>'; // (segc: one segmented control, 1.39.2)
 }
 function rangeCtl(id, label, min, max, val, text, step = 1) {
   return `<label><span class="lbl">${label}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="num" id="${id}V">${text}</span></label>`;
 }
+/* (1.39.2; the owner: "can you make these toolbars look more stylish as well?") A slider's track filled up to its value
+   (the CSS reads --fill). */
+function rangeFill(r) { const lo = +r.min || 0, hi = +r.max || 100, f = hi > lo ? (r.value - lo) / (hi - lo) : 0; r.style.setProperty('--fill', (100 * Math.max(0, Math.min(1, f))).toFixed(1) + '%'); }
 function buildToolOpts() {
   if (UI.started) optSave();
   const el = $('toolopts'), t = UI.tool, o = OPT[t];
@@ -639,7 +642,7 @@ function buildToolOpts() {
       break;
     }
   }
-  el.innerHTML = h;
+  el.innerHTML = h; for (const r of el.querySelectorAll("input[type=range]")) rangeFill(r);
   toolTyped(t, o);
   el.onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -6519,6 +6522,7 @@ function menusInit() {
   $('crashModal').addEventListener('click', (e) => { const b = e.target.closest('[data-crash]'); if (b) crashAction(b.dataset.crash); });
   window.addEventListener('error', (e) => { if (e.error || (e.message && e.message !== 'Script error.')) crashError(e.error || new Error(e.message), 'event'); });
   $('toolopts').addEventListener('change', () => optSave());
+  $('toolopts').addEventListener('input', (e) => { if (e.target.type === 'range') rangeFill(e.target); }); // (the slider's filled part, 1.39.2)
   // the panel's inner edge: drag to make it wider or narrower (Settings → Display)
   const sp = document.createElement('div'); sp.className = 'psplit'; sp.title = 'Drag to resize the panel'; $('panel').appendChild(sp);
   sp.addEventListener('pointerdown', (e) => {
@@ -6616,7 +6620,7 @@ function toolKey(t) { return W.d3 && t.key3 ? t.key3 : t.key; }
 const SET_DEF = { wave: 0, bo: 0, pi: 0, piRpc: 1, qeq: 0, rc: 6, motion: true, inc: false, dtMax: 0.04, resBig: false, ultra: false, maxParts: 4000, res: 'sharp', budget: 10, effects: true, theme: 'system', tunit: 'K', munit: 'auto', tips: true, fps: true, threads: 'auto', gl: 'gl', apiKey: '', apiModel: '', prio: 0, prioAuto: false, startPaused: true, trail: 0.5, trailClock: 'real', narr: false, win: 'windowed', cursor: 'chamber',
   fpsCap: 0, atomScale: 1, labels: 'always', badges: 'always', caps: 'on', lightSlow: false, flashLow: false, cvd: false, ui: 1, side: 'right', pw: 356, wheel: 1, zoomTo: 'cursor', keepOpt: true, pauseBlur: false, wake: true, start: 'menu', autosave: true, eunit: 'eV', lunit: 'A', rewOn: true, rewSpan: 60, rewEvery: 0.5, rewMem: 250,
   fov3: 40, proj3: 'persp', fog3: 'normal', box3: 'grid', axes3: true, dist3: true, lbl3: 'front', orbit3: 1, orbitInv: false, spin3: 0 }; // (the last row: Settings → 3-D, display and camera only)
-const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], munit: ['auto', 'u', 'MeV'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
+const SET_OK = { bo: [0, 1, 2], pi: [0, 8, 16, 32], piRpc: [0, 1], qeq: [0, 10, 1], rc: [6, 9, 12], dtMax: [0.04, 0.02, 0.01], maxParts: [2000, 4000, 8000, 12000, 20000, 35000, 50000, 75000, 100000], res: ['sharp', 'standard', 'fast'], budget: [6, 10, 16, 24], theme: ['system', 'light', 'dark'], munit: ['auto', 'u', 'MeV'], tunit: ['K', 'C', 'F'], threads: ['auto', '1', '2', '4', '8', '16', '32'], gl: ['gl', '2d'], prio: [0, 1, 2, 3, 4], trail: [0.5, 1.5, 4], trailClock: ['real', 'sim'] , win: ['windowed', 'borderless'], cursor: ['never', 'chamber', 'always'] , fpsCap: [0, 30, 60, 120, 144], atomScale: [1, 0.7, 0.45], labels: ['always', 'hover', 'never'], badges: ['always', 'hover', 'never'], ui: [0.9, 1, 1.1, 1.25, 1.5], side: ['right', 'left'], wheel: [0.5, 1, 2], zoomTo: ['cursor', 'centre'], start: ['menu', 'last', 'setup'], eunit: ['eV', 'kJ', 'kcal'], lunit: ['A', 'nm', 'pm'] , rewSpan: [30, 60, 120, 300], rewEvery: [0.25, 0.5, 1, 2], rewMem: [100, 250, 500, 1000],
   fov3: [30, 40, 55, 70], proj3: ['persp', 'ortho'], fog3: ['off', 'low', 'normal', 'high'], box3: ['grid', 'edges', 'off'], lbl3: ['front', 'all'], orbit3: [0.5, 1, 2], spin3: [0, 6, 18] };
 const FOG3 = { off: 0, low: 0.3, normal: 0.55, high: 0.8 }; // (how far the farthest atoms fade toward the background)
 Object.assign(SET_DEF, { metal: 0 }); SET_OK.metal = [0, 1]; // (Experimental: bond orders for metals, 1.25)
@@ -7132,7 +7136,7 @@ const COSTS = {
   setXlrq: () => ({ k: 'physics', on: ['×1.4–3.5', 'Every pair of charged atoms, in the WebAssembly module and split over the worker threads (1.34.3): measured on one thread, flat liquid water (240 atoms) ×1.4, 3-D liquid water (1,029 atoms) ×3.4 (in JavaScript, 1.34.0: ×4 and ×9); it grows as the square of the number of atoms, and shrinks with more threads'] }),
   setXdisp: () => ({ k: 'physics', on: ['×3–14', 'Every three atoms within 5 Å, in the WebAssembly module and split over the worker threads (1.34.3): measured on one thread, flat liquid water ×3, 3-D liquid water (1,029 atoms) ×13 (in JavaScript, 1.34.0: ×10 and ×30); less with more threads'] }),
   setXnucl: () => ({ k: 'physics', on: ['×1 + pauses', 'Nothing a step; when two light nuclei collide above their barrier, a pause of about 20 ms for that collision (its nucleons\u2019 steps in the WebAssembly module, 1.34.3: 25–30 ms before), the first time a kind of nucleus is met about 10 ms more (its lowest arrangement, then kept)'] }),
-  segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }),
+  segMax: () => ({ k: 'physics', o: { 2000: ['up to ×0.5', ''], 4000: ['×1', ''], 8000: ['up to ×2', ''], 12000: ['up to ×3', ''], 20000: ['up to ×5', ''], 35000: ['up to ×9', ''], 50000: ['up to ×13', ''], 75000: ['up to ×19', ''], 100000: ['up to ×25', ''] }, t: 'The limit itself costs nothing; a box filled to it takes this much longer than one filled to 4,000' }), // (35k to 100k: 1.39.2)
   segRes: () => { // (pixels drawn against Sharp, the usual: on this screen)
     const d = Math.max(1, Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)), px = (m) => Math.min(d, m) ** 2 / (d * d);
     return { k: 'drawing', o: { sharp: ['×1', 'Full screen resolution'], standard: [costX(px(1)), d > 1 ? 'One drawn pixel per screen point: ' + Math.round(100 * px(1)) + '% of the pixels on this screen' : 'The same pixels as Sharp on this screen'], fast: [costX(px(0.75)), 'Three quarters resolution: ' + Math.round(100 * px(0.75)) + '% of the pixels'] } };
@@ -7369,7 +7373,7 @@ const STAB_DESC = {
 };
 const SDESC = {
   // Performance
-  segMax: ['Particle limit', 'The most particles the chamber holds. The limit itself costs nothing; a box filled to it takes longer to work out each step. The Place tool offers 100 at a click once the limit is 8,000 or more.'],
+  segMax: ['Particle limit', 'The most particles the chamber holds, 2,000 to 100,000. The limit itself costs nothing; a box filled to it takes longer to work out each step (100,000 atoms: about 40 ms a step on one core). The Place tool offers 100 at a click once the limit is 8,000 or more.'],
   segRes: ['Drawing resolution', 'How many pixels the chamber is drawn with. Sharp uses the screen’s full resolution; Standard and Fast draw fewer pixels, quicker on big or high-density screens.'],
   setPrio: ['Priority', 'Smooth keeps the frame rate up; Fast lets the physics take more of each frame, so the simulation runs faster but the picture may stutter. Auto picks the position from how this setup runs.'],
   segBudget: ['Physics per frame', 'The time each frame may spend on physics. More runs the simulation faster when the box is busy, at the cost of fewer frames a second.'],

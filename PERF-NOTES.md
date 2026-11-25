@@ -2051,6 +2051,25 @@ million"). A stable particle's card says "Mean life: stable" (it showed ∞, "�
 strangelet's card lost a second "Charge" row; "Status: hypothetical". The J/ψ's close-up called it "a D meson": c c̄ is
 now charmonium (b b̄ bottomonium). Test: f_139.js cards.
 
+**A smarter tool bar** (the owner: "can you make these toolbars look more stylish as well?"). The tool options bar's
+names in small capitals; each choice (projectile, mode, count, pole, isotopes, saved) one segmented control, the chosen
+part lit in the accent with a soft glow, the rest lighting on hover; sliders filled to their value (`rangeFill`, --fill)
+with a round thumb; values in a pill; the hint set off by a rule. CSS and a wrapper (`segc`) round each group's buttons;
+the clicks find their group as before.
+
+**Particle limit to 100,000** (the owner: "add an option to increase the particle limit to 100k (and more in between)").
+Settings → Particle limit: 2k, 4k, 8k, 12k, 20k, 35k, 50k, 75k, 100k. Measured: 100,000 argon atoms in the Node harness,
+10 steps in 404 ms (the kernel's shared memory 140 MB); in the headless page (no shared memory, as the artifact's
+page) 10 frames in 2.2 s: past about 90,000 particles the fixed 128 MB of the plain kernel's memory fills and it carries
+on with the JavaScript kernels (its own note: "the plain memory filled up"), slower; with shared memory (cross-origin
+isolated, threads) it grows to 1 GB.
+
+**Antimatter ions drawn (and pushing) as huge anions** (the owner, a screenshot: "anti-elements get drawn WAY bigger than
+they should be; the tiny orange dots on the left are copper atoms"). An antimatter atom missing positrons has a negative
+charge, and its size was the ionic radius for that charge: an anion's, growing 55% a unit of charge. Anti-copper with
+15 positrons gone was 7.33 Å across in its drawing and in its repulsion (2 × the ionic radius), a −15 anion. Now an
+antimatter ion takes its matter twin's ionic radius (Cu¹⁵⁺: 0.28 Å), mirror for mirror. Test: f_139.js anti.
+
 ## 1.39.1 (released 2026-11-24): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
 After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
 kernel). 20,000 waters: **0.56 ms a step**, the goal met by the benchmark's sum (37.5 steps × 0.56 + 0.9 ms drawing =

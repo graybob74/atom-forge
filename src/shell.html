@@ -236,6 +236,21 @@ body.idle .stage, body.idle .stage * { cursor: none !important; }
 .toolopts .num { font-family: var(--font-data); font-variant-numeric: tabular-nums; min-width: 64px; display: inline-block; }
 .toolopts .opt { background: transparent; border: 1px solid var(--ch-line); color: var(--ch-fg); border-radius: 7px; padding: 3px 8px; font-size: 12px; }
 .toolopts .opt[aria-pressed="true"] { background: var(--ch-sel); color: var(--ch-sel-fg); }
+/* (1.39.2: the owner, "can you make these toolbars look more stylish as well?") small-caps names; each choice one
+   segmented control, the chosen part lit in the accent; a slider filled to its value with a round thumb; its value in a
+   pill; the hint set off by a rule. */
+.toolopts .lbl { font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 700; }
+.toolopts .segc { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: rgba(255, 255, 255, 0.045); border: 1px solid var(--ch-line); margin-left: 6px; }
+.toolopts > .lbl + .segc { margin-left: -8px; }
+.toolopts .segc .opt { border: 0; border-radius: 7px; padding: 3px 10px; transition: background 0.15s, color 0.15s, box-shadow 0.15s; }
+.toolopts .segc .opt:hover { background: rgba(255, 255, 255, 0.09); }
+.toolopts .opt[aria-pressed="true"], .toolopts .segc .opt[aria-pressed="true"] { background: linear-gradient(180deg, #a9c2ff, #7597f2); color: #0a1122; box-shadow: 0 1px 8px rgba(117, 151, 242, 0.45); font-weight: 650; }
+.toolopts input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 3px; background: linear-gradient(to right, #8fb2ff var(--fill, 50%), rgba(255, 255, 255, 0.16) var(--fill, 50%)); cursor: pointer; }
+.toolopts input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #f4f7ff; border: 2px solid #7597f2; box-shadow: 0 0 0 3px rgba(117, 151, 242, 0.22), 0 1px 3px rgba(0, 0, 0, 0.5); transition: box-shadow 0.15s; }
+.toolopts input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #f4f7ff; border: 2px solid #7597f2; box-shadow: 0 0 0 3px rgba(117, 151, 242, 0.22); }
+.toolopts input[type=range]:hover::-webkit-slider-thumb, .toolopts input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(117, 151, 242, 0.3), 0 1px 3px rgba(0, 0, 0, 0.5); }
+.toolopts .num { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--ch-line); border-radius: 6px; padding: 1px 7px; text-align: center; }
+.toolopts > .help, .toolopts > span > .help:only-child { padding-left: 14px; border-left: 1px solid var(--ch-line); }
 .toolopts .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; vertical-align: -2px; }
 .toolopts .help { color: var(--ch-dim); }
 .hint { position: absolute; left: 10px; top: 52px; max-width: 380px; background: var(--ch-glass); color: var(--ch-fg); border: 1px solid var(--ch-line);
