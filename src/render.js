@@ -1223,6 +1223,32 @@ function exoInside(ctx, o, x, y, c, hx) {
     drawSprite(ballSprite(E_COL, electronR()), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     return R0 + 2;
   }
+  if (d.hypN) { // (1.39.1 item 104) ⁶ΛΛHe, anti-⁴ΛH: its nucleons (antinucleons), its Λ (Λ̄) ringed at the middle
+    const h = d.hypN, nsp = nucleusSprite(h.Z, h.N, b, !!h.anti);
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(7, nsp.rn * 3)), x, y, 0.4);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSprite(nsp, x, y);
+    const lk = h.anti ? 'Lamb' : 'Lam', lc = _xpHex[lk] || (_xpHex[lk] = '#' + XP[lk].col.map(v => v.toString(16).padStart(2, '0')).join(''));
+    for (let k = 0; k < h.nL; k++) {
+      const lx = x + (h.nL > 1 ? (k ? 0.55 : -0.55) * b : 0);
+      drawSprite(ballSprite(lc, b), lx, y);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(lx, y, b * 1.05, 0, Math.PI * 2); ctx.stroke();
+    }
+    return nsp.rn + 2;
+  }
+  if (o.sp === 'slet') return sletInside(ctx, o, x, y, c, b);
+  if (d.hypo && !(typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp])) { // (WIMP, axion, dark photon, monopole: points, as leptons; a monopole with its field lines, all out (a north pole))
+    const rl = Math.max(1.6, electronR() * 1.3);
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(6, rl * 4)), x, y, 0.45);
+    ctx.globalCompositeOperation = 'source-over';
+    if (o.sp === 'mono') { const L = Math.max(8, rl * 6); ctx.strokeStyle = rgba(c, 0.55); ctx.lineWidth = 1; ctx.beginPath();
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.2; ctx.moveTo(x + rl * 1.5 * Math.cos(a), y + rl * 1.5 * Math.sin(a)); ctx.lineTo(x + L * Math.cos(a), y + L * Math.sin(a)); }
+      ctx.stroke(); }
+    drawSprite(ballSprite(hx, rl), x, y);
+    return o.sp === 'mono' ? Math.max(8, rl * 6) + 2 : rl + 2;
+  }
   if (/^(mu|tau)[+-]$/.test(o.sp)) { // a muon or tau: a lepton, with nothing inside (point-like, as an electron)
     const rl = Math.max(1.6, electronR() * 1.3);
     ctx.globalCompositeOperation = 'lighter';
@@ -1233,12 +1259,35 @@ function exoInside(ctx, o, x, y, c, hx) {
   }
   const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
   if (!qc) return 0;
+  if (qc.length === 4) { // (a tetraquark, 1.39.1: two mesons side by side, the "molecule" reading, as the X(3872) and Tcc⁺ sit at their thresholds)
+    const sx = b * 0.75, t1 = exoBag(ctx, o, x - sx, y, c, b * 0.85, qc[0] + qc[3], 0), t2 = exoBag(ctx, o, x + sx, y, c, b * 0.85, qc[1] + qc[2], 2);
+    return Math.max(t1, t2) + 2;
+  }
+  if (o.sp === 'Sx' || o.sp === 'Sxb') return exoBag(ctx, o, x, y, c, b * 0.6, qc, 0); // (the sexaquark: compact, smaller than a proton, 1.39.1)
   if (qc.length === 5) { // (a pentaquark, 1.28.3: its baryon and its meson side by side, the "molecule" reading)
     const sx = b * 0.95;
     const t1 = exoBag(ctx, o, x - sx, y, c, b, qc.slice(0, 3), 0), t2 = exoBag(ctx, o, x + sx * 1.1, y, c, b * 0.8, qc.slice(3), 3);
     return Math.max(t1, t2) + 2;
   }
   return exoBag(ctx, o, x, y, c, b, qc, 0);
+}
+/* A strangelet (1.39.1 item 104): its 3A quarks in one bag the size of a nucleus of A (u, d, s about equal; a strange
+   quark ringed), spread as a sunflower's seeds, turning slowly. */
+function sletInside(ctx, o, x, y, c, b) {
+  const A = o.A || XP.slet.B, n = 3 * A, rb = b * 1.15 * Math.cbrt(A), qr = Math.max(0.7, rb * 0.95 / Math.sqrt(n) * 0.8);
+  ctx.globalCompositeOperation = 'lighter';
+  if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 2.2)), x, y, 0.35);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = rgba(c, 0.14); ctx.strokeStyle = rgba(c, 0.8); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (rb < 3) return rb + 2;
+  const qs = sletQuarks(A, o.q), rot = W.at * 0.3 + o.id;
+  for (let k = 0; k < n; k++) {
+    const r = rb * 0.92 * Math.sqrt((k + 0.5) / n), a = k * 2.39996 + rot, qx = x + r * Math.cos(a), qy = y + r * Math.sin(a);
+    drawSprite(ballSprite(Q_COL[k % 3], qr), qx, qy);
+    if (qs[k] === 's' && qr > 1.5) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.6, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  return rb + 2;
 }
 /* One bag of quarks (a hadron, or one part of a pentaquark): its colour charges as the hadron's, a strange quark ringed. */
 function exoBag(ctx, o, x, y, c, b, qc, k0) {

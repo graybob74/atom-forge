@@ -1723,8 +1723,10 @@ const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', '
   'Lc+': 'udc', 'Lcb-': 'UDC', Bs0: 'sB', Bsb0: 'bS', Lb0: 'udb', Lbb0: 'UDB', Jpsi: 'cC', Ups: 'bB' }; // (the heavy hadrons of Realistic particles 5, 1.27) (capitals: antiquarks; the resonances (ρ, ω, φ, K*, Δ) as their ground-state partners, excited)
 const QV = { subj: null, key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
 function qSubject(p, X) { // what to look inside: { key, content, name, note }
-  if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck || XP[X.o.sp].hyp)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
+  if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck || XP[X.o.sp].hyp || XP[X.o.sp].hypN)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
   if (X && X.kind === 'exo' && XP[X.o.sp].ew) return { key: 'x' + X.o.id, boson: true, higgs: X.o.sp === 'H0' }; // (W and Z: fundamental, 1.27; the Higgs boson, feature 25)
+  if (X && X.kind === 'exo' && X.o.sp === 'slet') { const A = X.o.A || XP.slet.B; return { key: 'x' + X.o.id + 'A' + A, content: sletQuarks(A, X.o.q), o: X.o, slet: A, head: `Inside its ${3 * A} quarks` }; } // (1.39.1 item 104)
+  if (X && X.kind === 'exo' && XP[X.o.sp].hypo && !Q_CONTENT[X.o.sp]) return { key: 'x' + X.o.id, fund: X.o.sp }; // (WIMP, axion, monopole, dark photon: nothing inside, 1.39.1)
   if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c, o: X.o } : { key: 'x' + X.o.id, lepton: true }; }
   if (!p || p.k !== NUC || p.Z + p.N < 1) return null;
   if (p.mu) return { key: 'mu' + p.id, lepton: true, mu: true }; // (muonium: its nucleus is a μ⁺, a lepton with no quarks; it was shown as hydrogen's proton, uud, 1.26 bug fix)
@@ -1747,10 +1749,12 @@ function qName(content) {
 }
 function qReset(sub) {
   QV.key = sub.key; QV.orig = sub.content; QV.out = null; QV.drag = null; QV.msg = ''; QV.sea = []; QV.g = null; QV.t = 0;
+  let nq = 0, na = 0; // (colours: the quarks red, green, blue in turn, the antiquarks the anticolours, so any whole is colourless; more than three quarks too, 1.39.1)
   QV.qs = [...sub.content].map((c, i, a) => {
-    const anti = c === c.toUpperCase(), n = a.length, ang = 2 * Math.PI * i / n + 0.3;
-    return { f: c.toLowerCase(), anti, col: n === 3 ? i : 0, hx: 0.42 * Math.cos(ang), hy: 0.42 * Math.sin(ang), x: 0.42 * Math.cos(ang), y: 0.42 * Math.sin(ang), vx: 0, vy: 0, ph: rnd() * 6 };
+    const anti = c === c.toUpperCase(), n = a.length, ang = n > 6 ? i * 2.39996 : 2 * Math.PI * i / n + 0.3, r = n > 6 ? 0.66 * Math.sqrt((i + 0.5) / n) : 0.42; // (a big bag, a strangelet's: its quarks spread over it, a sunflower's seeds)
+    return { f: c.toLowerCase(), anti, col: anti ? na++ % 3 : nq++ % 3, hx: r * Math.cos(ang), hy: r * Math.sin(ang), x: r * Math.cos(ang), y: r * Math.sin(ang), vx: 0, vy: 0, ph: rnd() * 6 };
   });
+  QV.jig = QV.qs.length > 6 ? 0.03 : 0.18;
   if (QV.qs.length === 2) QV.qs[1].col = QV.qs[0].col;
 }
 function quarkSecHTML(sub) {
@@ -1758,6 +1762,7 @@ function quarkSecHTML(sub) {
   if (sub.mu) return `<section class="group"><h3>Inside its nucleus, a positive muon</h3><p class="note">Nothing: the muon (μ⁺) is a lepton, like the electron, 207 times heavier. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks, so this “nucleus” has no nucleons, and nothing in it can react as a nucleus does.</p></section>`;
   if (sub.boson && sub.higgs) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: the Higgs boson is fundamental, as the W and Z are: a ripple in the Higgs field itself, no quarks or gluons inside.</p></section>`; // (1.27 feature 25)
   if (sub.boson) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: the W and Z are fundamental, as the photon is, carriers of a force rather than things made of smaller parts; no quarks, no gluons inside. Their mass (80 and 91 GeV) comes from the Higgs field.</p></section>`; // (1.27)
+  if (sub.fund) return `<section class="group"><h3>Inside</h3><p class="note">${esc(FUND_NOTE[sub.fund] || FUND_NOTE.wimp)}</p></section>`; // (1.39.1 item 104)
   if (sub.lepton) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: it is a lepton, like the electron. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks.</p></section>`;
   if (QV.key !== sub.key) qReset(sub);
   QV.subj = sub;
@@ -1768,6 +1773,7 @@ function quarkSecHTML(sub) {
     <p class="note" id="insQNote">${esc(qNote())}</p></section>`;
 }
 function qNote() {
+  if (QV.qs.length > 3) return (QV.msg ? QV.msg + ' ' : '') + qNoteMany() + ' (The picture is a sketch: the simulation does not follow quarks one by one.)';
   const qs = QV.qs, nm = qName(qs.map(q => q.anti ? q.f.toUpperCase() : q.f).join(''));
   const list = qs.map(q => { const c = (q.anti ? -1 : 1) * Q_CHG[q.f]; return `${q.anti ? Q_BAR[q.f] : Q_SYM[q.f]} (${c > 0 ? '+' : '−'}${Math.abs(c) > 0.5 ? '2/3' : '1/3'})`; }).join(', ');
   const chgTxt = qs.map(q => (q.anti ? -1 : 1) * Q_CHG[q.f]).reduce((a, b) => a + b, 0);
@@ -1776,6 +1782,32 @@ function qNote() {
     : `A ${nm.name} (${nm.sym}): a quark and an antiquark, ${list}. A colour and its anticolour make it colourless; it lives only until the weak or electromagnetic force lets it decay.`;
   return (QV.msg ? QV.msg + ' ' : '') + base + ' (The picture is a sketch: the simulation does not follow quarks one by one. Pulling one out does happen in the chamber, though: what it makes appears there.)';
 }
+/* (1.39.1 item 104) More than three quarks: a tetraquark, pentaquark, hexaquark or a strangelet. (It said "a quark and an
+   antiquark" for all of them.) */
+function qNoteMany() {
+  const qs = QV.qs, n = qs.length, chg = Math.round(qs.reduce((a, q) => a + (q.anti ? -1 : 1) * Q_CHG[q.f], 0)), cs = `${chg > 0 ? '+' : chg < 0 ? '−' : ''}${Math.abs(chg)}`;
+  const nq = qs.filter(q => !q.anti).length, na = n - nq, sub = QV.subj || {};
+  if (sub.slet) { const c = (f) => qs.filter(q => q.f === f).length;
+    return `A strangelet (hypothetical): ${n} quarks, ${c('u')} up, ${c('d')} down, ${c('s')} strange, in one bag, no nucleons inside. Charges add to ${cs}. Strange quarks lower its energy: with three kinds, more quarks fit in the lowest levels (the Pauli principle), which is why strange matter might be more stable than nuclei. A neutron it swallows adds three more.`; }
+  const kind = n === 4 ? 'tetraquark' : n === 5 ? 'pentaquark' : n === 6 ? (na ? 'six quarks' : 'hexaquark') : `${n}-quark state`;
+  const list = qs.map(q => q.anti ? Q_BAR[q.f] : Q_SYM[q.f]).join(' ');
+  const how = n === 4 ? 'Two quarks and two antiquarks: maybe one tight bag, maybe two mesons barely holding on to each other (a “molecule”); experiments are still telling which.'
+    : n === 5 ? 'Four quarks and an antiquark: maybe one bag, maybe a baryon and a meson held loosely together.'
+    : sub.o && sub.o.sp === 'Sx' || sub.o && sub.o.sp === 'Sxb' ? 'Six quarks in a bag much smaller than a proton (hypothetical): so tightly bound it would be lighter than two protons, stable, and barely touch other matter.'
+    : 'Six quarks: one bag, or two baryons stuck together.';
+  return `A ${kind}: ${list}; charges add to ${cs}. The colours add to colourless, as in every hadron. ${how}`;
+}
+const FUND_NOTE = {
+  wimp: 'Nothing, as far as anyone supposes: a WIMP would be a new fundamental particle, like the electron, with no quarks and no strong force; it touches matter only through the weak force (or something as weak). Hypothetical.',
+  axion: 'Nothing: an axion would be a fundamental particle, a ripple of a new field (proposed to explain why the strong force keeps time symmetry), far lighter than an electron. Hypothetical.',
+  Ap: 'Nothing: a dark photon would be fundamental, as the photon is, a carrier of a new force, with a small mass, that mixes a little with light. Hypothetical.',
+  mono: 'Dirac’s monopole is a point, as an electron is. The monopoles grand unified theories predict (’t Hooft–Polyakov) have a core: a knot of the unified force’s fields about 10⁻³¹ m across, holding almost all of their enormous mass (about 10¹⁶ GeV). Hypothetical.',
+};
+function sletQuarks(A, Z) { // (its quark content: 3A quarks, Z = N_u − A, so N_u = A + Z and the rest down and strange about equally; mixed)
+  const nu = A + (Z | 0), nd = Math.ceil((2 * A - (Z | 0)) / 2), ns = 3 * A - nu - nd, out = [];
+  for (let i = 0, a = [nu, nd, ns]; out.length < 3 * A; i++) { const k = i % 3; if (a[k] > 0) { out.push('uds'[k]); a[k]--; } }
+  return out.join('');
+}
 function qStep(dt) {
   QV.t += dt;
   const qs = QV.qs, n = qs.length, rot = 0.25 * dt;
@@ -1783,14 +1815,14 @@ function qStep(dt) {
     const c = Math.cos(rot), s = Math.sin(rot), hx = q.hx * c - q.hy * s, hy = q.hx * s + q.hy * c; q.hx = hx; q.hy = hy;
     if (QV.drag && QV.drag.q === q) continue;
     q.ph += dt * (2 + rnd());
-    const tx = q.hx + 0.18 * Math.sin(q.ph * 1.7), ty = q.hy + 0.18 * Math.cos(q.ph * 2.3);
+    const tx = q.hx + (QV.jig || 0.18) * Math.sin(q.ph * 1.7), ty = q.hy + (QV.jig || 0.18) * Math.cos(q.ph * 2.3);
     q.vx += (tx - q.x) * 40 * dt - q.vx * 6 * dt + (rnd() - 0.5) * 4 * dt; q.vy += (ty - q.y) * 40 * dt - q.vy * 6 * dt + (rnd() - 0.5) * 4 * dt;
     q.x += q.vx * dt; q.y += q.vy * dt;
   }
   // a gluon carries colour from one quark to another (three quarks: two swap colours; quark–antiquark: both change)
   if (!QV.g && !QV.drag && rnd() < dt * 2.2) { const a = Math.floor(rnd() * n); let b = (a + 1 + Math.floor(rnd() * (n - 1))) % n; QV.g = { a, b, t: 0 }; }
   if (QV.g) { QV.g.t += dt / 0.35; if (QV.g.t >= 1) { const A = qs[QV.g.a], B = qs[QV.g.b];
-    if (n === 3) { const t = A.col; A.col = B.col; B.col = t; } else { const c = (A.col + 1 + Math.floor(rnd() * 2)) % 3; A.col = c; B.col = c; }
+    if (A.anti === B.anti) { const t = A.col; A.col = B.col; B.col = t; } else { /* (two quarks, or two antiquarks: they swap colours; a quark and an antiquark: both change) */ const c = (A.col + 1 + Math.floor(rnd() * 2)) % 3; A.col = c; B.col = c; }
     QV.g = null; } }
   // the sea: virtual quark–antiquark pairs, there and gone
   if (rnd() < dt * 1.5 && QV.sea.length < 3) { const a = rnd() * 6.28, r = 0.6 * Math.sqrt(rnd()); QV.sea.push({ x: r * Math.cos(a), y: r * Math.sin(a), f: rnd() < 0.8 ? (rnd() < 0.5 ? 'u' : 'd') : 's', t: 0, a: rnd() * 6.28 }); }
@@ -1800,7 +1832,7 @@ function qStep(dt) {
   if (QV.out) { QV.out.t += dt; QV.out.x += QV.out.vx * dt; QV.out.y += QV.out.vy * dt; if (QV.out.t > 2.2) QV.out = null; }
 }
 function qAnchor(q) { const os = QV.qs.filter(o => o !== q); let x = 0, y = 0; for (const o of os) { x += o.x; y += o.y; } return [x / os.length, y / os.length]; } // (what a pulled quark is pulled away from)
-function qJunction() { const qs = QV.qs; if (qs.length === 2) return null; let x = 0, y = 0; for (const q of qs) { x += q.x; y += q.y; } return [x / 3, y / 3]; }
+function qJunction() { const qs = QV.qs; if (qs.length === 2) return null; let x = 0, y = 0; for (const q of qs) { x += q.x; y += q.y; } return [x / qs.length, y / qs.length]; } // (the middle of all of them: more than three too, 1.39.1)
 function qDraw(dt) {
   const cv = $('insQuarks'); if (!cv) return;
   if (dt > 0) qStep(Math.min(0.05, dt));
@@ -1816,7 +1848,7 @@ function qDraw(dt) {
   const tube = (x0, y0, q) => { const L = Math.hypot(q.x - x0, q.y - y0); ctx.strokeStyle = col(q); ctx.globalAlpha = 0.55; ctx.lineWidth = Math.max(2, 7 - 2.5 * L); ctx.shadowColor = col(q); ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(q.x), Y(q.y)); ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1; };
   const J = qJunction();
-  if (J) for (const q of qs) tube(J[0], J[1], q);
+  if (J && qs.length <= 6) for (const q of qs) tube(J[0], J[1], q);
   else { const [a, b] = qs, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; tube(mx, my, a); tube(mx, my, b); }
   // a gluon on its way: a wiggle from one quark to another
   if (QV.g) { const A = qs[QV.g.a], B = qs[QV.g.b], t = QV.g.t, gx = A.x + (B.x - A.x) * t, gy = A.y + (B.y - A.y) * t, L = Math.hypot(B.x - A.x, B.y - A.y) || 1, nx = -(B.y - A.y) / L, ny = (B.x - A.x) / L;
@@ -1830,9 +1862,11 @@ function qDraw(dt) {
     ctx.fillStyle = '#c8d2e6'; ctx.fillText(Q_SYM[v.f] + Q_BAR[v.f], X(v.x), Y(v.y) - 11); ctx.globalAlpha = 1; }
   // the quarks
   ctx.font = 'bold 13px ' + cssVar('--font-data');
-  for (const q of qs) { const x = X(q.x), y = Y(q.y), c = col(q), gr = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, 11);
-    gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, c); gr.addColorStop(1, c); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.29); ctx.fill();
-    ctx.fillStyle = '#0b0f16'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); }
+  const qrp = qs.length > 6 ? Math.max(4, 10 * Math.sqrt(6 / qs.length)) : 10; // (many quarks: smaller, to fit)
+  if (qrp < 10) ctx.font = `bold ${Math.max(7, Math.round(qrp * 1.3))}px ` + cssVar('--font-data');
+  for (const q of qs) { const x = X(q.x), y = Y(q.y), c = col(q), gr = ctx.createRadialGradient(x - 0.3 * qrp, y - 0.3 * qrp, 1, x, y, qrp * 1.1);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, c); gr.addColorStop(1, c); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, qrp, 0, 6.29); ctx.fill();
+    if (qrp >= 6) { ctx.fillStyle = '#0b0f16'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); } }
   // the string being pulled: its energy
   if (QV.drag) { const q = QV.drag.q, ref = qAnchor(q), L = Math.hypot(q.x - ref[0], q.y - ref[1]);
     ctx.fillStyle = '#ffd166'; ctx.font = '11px ' + cssVar('--font-data'); ctx.textAlign = 'left'; ctx.fillText(`string: ${(0.9 * Math.max(0, L - 0.4)).toFixed(2)} GeV (≈ 0.9 GeV per fm)`, 8, 12); }
@@ -1841,7 +1875,7 @@ function qDraw(dt) {
     ctx.beginPath(); ctx.moveTo(X(o.x - 0.12), Y(o.y)); ctx.lineTo(X(o.x + 0.12), Y(o.y)); ctx.stroke();
     for (const [i, q] of o.qs.entries()) { const x = X(o.x + (i ? 0.14 : -0.14)), y = Y(o.y); ctx.fillStyle = q.anti ? Q_ACOL[q.col] : Q_COL[q.col]; ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.29); ctx.fill(); ctx.fillStyle = '#0b0f16'; ctx.font = 'bold 11px ' + cssVar('--font-data'); ctx.textAlign = 'center'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); }
     ctx.fillStyle = '#fff'; ctx.font = '11px ' + cssVar('--font-data'); ctx.fillText(o.name, X(o.x), Y(o.y) - 16); ctx.globalAlpha = 1; }
-  ctx.font = '10px ' + cssVar('--font-data'); ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(200,210,230,0.6)'; ctx.fillText('≈ 1.7 fm across (10⁻¹⁵ m)', w - 6, h - 8); ctx.textAlign = 'left';
+  ctx.font = '10px ' + cssVar('--font-data'); ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(200,210,230,0.6)'; ctx.fillText(QV.subj && QV.subj.slet ? `≈ ${(2.4 * Math.cbrt(QV.subj.slet)).toFixed(1)} fm across (10⁻¹⁵ m)` : QV.subj && QV.subj.o && (QV.subj.o.sp === 'Sx' || QV.subj.o.sp === 'Sxb') ? '≈ 0.5–1 fm across (10⁻¹⁵ m), if it exists' : '≈ 1.7 fm across (10⁻¹⁵ m)', w - 6, h - 8); // (a strangelet: as a nucleus of A, 1.2 fm·A^⅓ in radius; the sexaquark: compact, 1.39.1) ctx.textAlign = 'left';
   const nt = $('insQNote'); if (nt && (QV.t - QV.last > 0.5 || !nt.textContent)) { QV.last = QV.t; nt.textContent = qNote(); }
 }
 function qPointer(e, kind) {

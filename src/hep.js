@@ -304,8 +304,8 @@ function hypSpecies(Z, N) { // the core (Z, N) with a Λ: its XP entry, made whe
    6.91 MeV; it decayed to ⁵ΛHe p π⁻; its mean life is not measured: two Λ, about half a ⁵ΛHe's), and antihyperhydrogen-4
    (STAR 2024: p̄ n̄ n̄ Λ̄, seen by its decay to anti-⁴He π⁺; mean life as ⁴ΛH's, 218 ps, STAR 2022, CPT). */
 hypSpecies(2, 2); hypSpecies(1, 2);
-XP.LL6He = { lab: '⁶ΛΛHe', m: nucMeV(2, 2) + 2 * LAM_M - 6.91, q: 2, B: 6, tau: 1.4e-10, col: [210, 140, 255], cc: 'LL6He', BLL: 6.91, dec: [[0.6, ['hy2_2', 'p', 'pi-']], [0.4, ['hy2_2', 'n', 'pi0']]] };
-XP.ahy1_2 = { lab: '⁴Λ̄H̄', m: nucMeV(1, 2) + LAM_M - hypB(4), q: -1, B: -4, tau: 2.18e-10, col: [255, 140, 220], cc: 'hy1_2', dec: [[0.5, ['abar', 'pi+']], [0.5, ['tbar', 'pbar', 'pi+']]] };
+XP.LL6He = { hypN: { Z: 2, N: 2, nL: 2 }, lab: '⁶ΛΛHe', m: nucMeV(2, 2) + 2 * LAM_M - 6.91, q: 2, B: 6, tau: 1.4e-10, col: [210, 140, 255], cc: 'LL6He', BLL: 6.91, dec: [[0.6, ['hy2_2', 'p', 'pi-']], [0.4, ['hy2_2', 'n', 'pi0']]] };
+XP.ahy1_2 = { hypN: { Z: 1, N: 2, nL: 1, anti: true }, lab: '⁴Λ̄H̄', m: nucMeV(1, 2) + LAM_M - hypB(4), q: -1, B: -4, tau: 2.18e-10, col: [255, 140, 220], cc: 'hy1_2', dec: [[0.5, ['abar', 'pi+']], [0.5, ['tbar', 'pbar', 'pi+']]] };
 const hypMesonic = (A) => (A <= 4 ? 0.85 : A <= 12 ? 0.3 : A <= 40 ? 0.08 : 0.02); // (Pauli blocking of the nucleon from Λ → Nπ)
 /* (1.25) The nearest atom within R of a stopped particle o that skip() does not rule out: in the plane, or in 3-D. */
 function stopTarget(o, skip, R = 4) {
@@ -1088,7 +1088,7 @@ function exoScatter(o, x0, y0) {
    WIMP: elastic recoils off nuclei, spin-independent, coherent: σ_A = σ_n A² (μ_A/μ_n)², with σ_n = 2.2×10⁻⁴⁸ cm² (LZ
    2024, 90% limit at 40 GeV), so xenon is struck ~10⁷ times as often as hydrogen; isotropic in their centre of mass.
    Shown 10²³ times as often (DKM.boost; off in ultra-realistic, where none will be seen in a box this size).
-   Axion: in a magnetic field it turns into a photon of its energy (Primakoff), P = sin²(g B⊥ L / 2) along its path,
+   Axion: in a magnetic field it turns into a photon of its energy (Primakoff), P = sin²(g B⊥ L / 2) along its path (one way: a photon is not turned back, so in a long enough field every axion converts),
    g = 5.8×10⁻¹¹ GeV⁻¹ (CAST 2024, the limit); shown with g 10¹⁷ times larger (off in ultra-realistic).
    Strangelet: a neutron it touches is swallowed (no Coulomb barrier), the binding out as a γ; the charge it keeps.
    Monopole: Dirac's magnetic charge, 68.5 e: it ionizes as an electric charge of 68.5 β would (Bethe: a loss that hardly
@@ -1097,9 +1097,36 @@ function exoScatter(o, x0, y0) {
 const DKM = { sigN: 2.2e-48, boost: 1e23, gAg: 5.8e-11, axBoost: 1e17, monoG: 68.5, axK: 1e-9 * 195.35 * 5.0677e-4 / 2 };
 function darkStep(o, d, x0, y0, z0, h) {
   if (d.dark === 'wimp') return wimpStep(o, x0, y0, z0);
-  if (d.dark === 'axion') return axionStep(o, x0, y0, z0);
+  if (d.dark === 'axion') return axionStep(o, x0, y0, z0, h);
   if (d.dark === 'slet') return sletStep(o, x0, y0, z0);
   if (d.dark === 'mono') { monoStep(o, x0, y0, z0, h); return o.dead; }
+  return false;
+}
+/* (1.39.1, item 105; the owner: "make it so those particles stay in the box if it's not on open mode") A hypothetical
+   particle in a box with walls flies its step in pieces no longer than a fifth of the box, each turned back at a reflecting
+   wall or carried across a wrapping one, and meets on each piece what it would (darkStep, placed objects): an axion at c
+   crosses a 40 Å box 15 times in a 0.02 tu step. Returns true if it is gone. */
+/* One kept in a closed box flies in its own short pieces (hypoFly), so it neither shortens the world's step nor holds time
+   back: a bouncing axion at c would otherwise slow the whole box ~500 times for as long as it is there. */
+function hypoKept(o) { return !o.xb && W.wall !== 'open' && !!XP[o.sp].hypo; }
+function hypoFly(o, d, h) {
+  o._sub = true;
+  if (!(h > 0)) return false;
+  const d3 = W.d3, H = d3 ? [W.box.w / 2, W.box.h / 2, W.box.d / 2] : [W.box.w / 2, W.box.h / 2], ax = d3 ? ['x', 'y', 'z'] : ['x', 'y'];
+  const L = Math.max(1e-6, 0.4 * Math.min(...H)), n = Math.min(400, Math.max(1, Math.ceil(o.v * h / L))), hs = h / n, wrap = W.wall === 'wrap';
+  for (let k = 0; k < n; k++) {
+    const xs = o.x, ys = o.y, zs = o.z || 0;
+    if (d3) flyExo3(o, hs); else flyExo(o, hs);
+    if (o.dead) return true;
+    let crossed = false;
+    for (let j = 0; j < ax.length; j++) {
+      const a = ax[j], m = H[j]; if (Math.abs(o[a]) <= m) continue;
+      if (wrap) { o[a] -= Math.sign(o[a]) * 2 * m; crossed = true; } else { o[a] = Math.sign(o[a]) * (2 * m - Math.abs(o[a])); o['u' + a] = -o['u' + a]; }
+    }
+    if (crossed) continue; // (the path jumped across the box: nothing met on it this piece)
+    if (!d3 && W.objs.length && objExo(o, xs, ys)) return true;
+    if (d.dark && darkStep(o, d, xs, ys, zs, hs)) return true;
+  }
   return false;
 }
 function darkSeg(o, x0, y0, z0, filter) { // (nuclei along its path this step, [t, target, b])
@@ -1140,13 +1167,13 @@ function wimpStep(o, x0, y0, z0) {
   }
   return false;
 }
-function axionStep(o, x0, y0, z0) {
+function axionStep(o, x0, y0, z0, h) {
   const xm = (x0 + o.x) / 2, ym = (y0 + o.y) / 2, zm = W.d3 ? (z0 + o.z) / 2 : 0;
   const B = W.d3 ? Bfield3(xm, ym, zm, null) : Bfield(xm, ym, null);
   if (!B) return false;
   let Bp = Math.abs(B); // (the flat game's field is along z, across every path in the plane)
   if (W.d3) { const ua = o['u' + (W.Bax3 || 'z')] || 0; Bp *= Math.sqrt(Math.max(0, 1 - ua * ua)); }
-  const ds = W.d3 ? Math.hypot(o.x - x0, o.y - y0, o.z - z0) : Math.hypot(o.x - x0, o.y - y0);
+  const ds = h > 0 ? o.v * h : W.d3 ? Math.hypot(o.x - x0, o.y - y0, o.z - z0) : Math.hypot(o.x - x0, o.y - y0); // (its path: straight, so v·h, also when a wall turned it back on the way, 1.39.1)
   const a0 = o.axA || 0, a1 = a0 + DKM.gAg * (W.ultra ? 1 : DKM.axBoost) * Bp * ds * DKM.axK;
   o.axA = a1;
   const P0 = Math.sin(a0) ** 2, P1 = Math.sin(a1) ** 2;
@@ -2458,12 +2485,13 @@ function moveExos(dt, id0) {
     }
     const d = XP[o.sp], x0 = o.x, y0 = o.y;
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; } // (held to be seen: it flies the whole step, and may decay in a later one)
-    if (o.xb) { moveExoBeam(o, h); nXb++; } else flyExo(o, h);
-    if (W.objs.length && !o.xb && objExo(o, x0, y0)) continue; // (placed objects: props.js)
+    if (d.hypo && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
+    else if (o.xb) { moveExoBeam(o, h); nXb++; } else flyExo(o, h);
+    if (W.objs.length && !o.xb && !o._sub && objExo(o, x0, y0)) continue; // (placed objects: props.js)
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec && !W.ultra && !deepSlow()) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      const kept = d.atom || d.hyp || d.muonium || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.hypo || d.muonium || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { if (Math.abs(o.x) > hw) o.x -= Math.sign(o.x) * 2 * hw; if (Math.abs(o.y) > hh) o.y -= Math.sign(o.y) * 2 * hh; } // (a periodic box: across, as atoms go (the trail is drawn across the edge as theirs is); muonic hydrogen left the box there, its energy escaped, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       else if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
@@ -2473,7 +2501,8 @@ function moveExos(dt, id0) {
     if (o.spin && RP.mu) muSpinTurn(o, clock * h / dt / o.gam); // (μSR: the μ⁺'s spin precesses, in its own time, up to its decay, 1.27)
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (a beam's: in the ring's vacuum; thrown out of the beam, the detector stops it)
-    if (d.dark && darkStep(o, d, x0, y0, 0, h)) continue; // (1.39, item 103)
+    if (o._sub) o._sub = false; // (hypoFly met everything on its way already)
+    else if (d.dark && darkStep(o, d, x0, y0, 0, h)) continue; // (1.39, item 103)
     const xa = RP.exo && XA_SPS.has(o.sp);
     if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch: caught at tens of eV into an orbit, 1.27)
     else {
@@ -2706,12 +2735,13 @@ function moveExos3(dt, id0) {
     if (o.stop) h = 0; // (at rest: it waits for its decay)
     const x0 = o.x, y0 = o.y, z0 = o.z;
     if (o.xb) nXb++;
-    if (o.xb) moveExoBeam3(o, h); // (a collider's beam: through the magnets and cavities, 1.37 item 100b; it flew straight, as if they were not there)
+    if (d.hypo && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
+    else if (o.xb) moveExoBeam3(o, h); // (a collider's beam: through the magnets and cavities, 1.37 item 100b; it flew straight, as if they were not there)
     else if (h > 0) flyExo3(o, h);
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
-      const kept = d.atom || d.hyp || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.hypo || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { for (const [k, h] of [['x', H[0]], ['y', H[1]], ['z', H[2]]]) if (Math.abs(o[k]) > h) o[k] -= Math.sign(o[k]) * 2 * h; } // (a periodic box: across, as atoms go, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
       else if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }
@@ -2724,7 +2754,8 @@ function moveExos3(dt, id0) {
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (as in the flat game)
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
-    if (d.dark && darkStep(o, d, x0, y0, z0, h)) continue; // (1.39, item 103)
+    if (o._sub) o._sub = false; // (hypoFly met everything on its way already)
+    else if (d.dark && darkStep(o, d, x0, y0, z0, h)) continue; // (1.39, item 103)
     const xa = RP.exo && XA_SPS.has(o.sp);
     if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch, 1.27)
     else {

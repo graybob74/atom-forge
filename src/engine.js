@@ -7546,7 +7546,7 @@ function chooseDt() {
   if (zoned) for (const s of W.sources) if (s.count > 0 && s.rate > 0) dt = Math.min(dt, 0.9 / s.rate); // (an injector sends in one particle a step)
   if (_stiff > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiff));
   if (_mdL.length) dt = Math.min(dt, KMAX * innerDt());
-  for (const o of W.exo) if (!o.dead && o.v > 0) dt = Math.min(dt, (o.xb && zoned ? 1.5 : 0.04 * Math.min(W.box.w, W.box.h)) / o.v); // (in a beam: as beams in an accelerator, 1.15) unstable particles in flight at near c: steps short enough that they cross the box in dozens of steps, not one
+  for (const o of W.exo) if (!o.dead && o.v > 0 && !hypoKept(o)) dt = Math.min(dt, (o.xb && zoned ? 1.5 : 0.04 * Math.min(W.box.w, W.box.h)) / o.v); // (in a beam: as beams in an accelerator, 1.15) unstable particles in flight at near c: steps short enough that they cross the box in dozens of steps, not one
   return Math.max(DT_MIN, dt);
 }
 
@@ -9289,7 +9289,7 @@ function holdFactor(realDt) {
     if (win && (p.nucProd || (!p.beam && p.born >= win.t0 && p.born <= win.t1))) continue;
     if (sp > v) v = sp;
   }
-  if (!win) for (const o of W.exo) if (!o.dead) v = Math.max(v, o.v); // (unstable particles in flight count like anything else fast)
+  if (!win) for (const o of W.exo) if (!o.dead && !hypoKept(o)) v = Math.max(v, o.v); // (unstable particles in flight count like anything else fast)
   for (const s of W.sources) { // what an injector is about to send in counts already
     if (s.count <= 0 || !(s.KE > 0)) continue;
     const k = s.spec.kind, m = k === 'gamma' ? 0 : k === 'e' || k === 'pos' ? PHYS.ME : k === 'exo' ? XP[s.spec.sp].m / PHYS.AMU_MEV : (s.spec.A || 1), g = m ? 1 + s.KE / (m * AMU_EV) : Infinity;
@@ -9313,7 +9313,7 @@ function eventSlow(realDt) {
       if (p.dead || p.born < S.t0 - 1e-9 || (p.k !== NUC && !p.rad)) continue; // stray slow electrons don't hold time up
       v = Math.max(v, speedNow(p)); // (3-D: with its depth and true speed, 1.26 bug fix)
     }
-    for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
+    for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9 && !hypoKept(o)) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
     want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * base), 1 / 50000, 1) : 1; // (against the setup's normal speed, as the slow-motion button: the products cross about 2% of the box a frame at 1×, and the speed buttons scale that, 0.91; it was against the speed as set, which cancelled them out)
     if (want > 0.99 && age > 0.25) S.on = false;
   } else S.on = false;

@@ -95,7 +95,7 @@ PARTS.mono = async (page, check) => {
 PARTS.hypo = async (page, check) => {
   const X = load('all', { seed: 1 }), W = X.W; X.PRESETS.empty.build(); big(W); W.decayOn = true; W.gamma = 0; W.warp = 1e9;
   for (let x = -20; x <= 20; x += 2.5) for (let y = -4; y <= 4; y += 2.5) { const p = X.addAtom('Pb', x, y); p.vx = p.vy = 0; p.fixed = true; }
-  const s = X.addExo('Sx', -25, 0, 1e9, 1, 0);
+  W.wall = 'open'; const s = X.addExo('Sx', -25, 0, 1e9, 1, 0); // (open walls: it leaves, 1.39.1)
   for (let k = 0; k < 400 && !s.dead && s.x < 24; k++) X.step(0.05);
   const grp = X.PCATS.find(g => g[0] === 'Hypothetical'), sps = grp ? grp[1].map(e => e.sp) : [];
   const names = sps.every(sp => /hypothetical/.test(X.XP_NAME[sp] || '')), kinds = sps.every(sp => X.madeKind({ t: 'x', sp }) === 'Hypothetical');
@@ -371,6 +371,50 @@ PARTS.tile = async (page, check) => { // (1.39.1: "monopole" ran far out of the 
   });
   check(r.every(x => x[1] && x[2] >= 9) && r.find(x => x[0] === 'wimp')[2] === 30, `1.39.1 every card's symbol fits its tile (${r.map(x => `${x[0]} ${x[2]} px`).join(', ')}); short ones keep 30 px`, `1.39.1 tile: ${JSON.stringify(r)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39.1 tile errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
+PARTS.kept = async (page, check) => { // (1.39.1 item 105: kept in the box unless its walls are open)
+  const res = {};
+  for (const d3 of [false, true]) for (const wall of ['reflect', 'wrap', 'open']) {
+    const X = load('all', { seed: 3 }), W = X.W; (d3 ? X.PRESETS.d3empty : X.PRESETS.empty).build(); W.decayOn = false; W.gamma = 0; W.wall = wall;
+    const os = ['axion', 'wimp', 'slet', 'mono', 'Sx'].map(sp => X.addExo(sp, 0, 0, 1e6, 0.6, 0.8, undefined, 0, 0));
+    let inside = true, maxDt = 0; const t0 = W.t, r0 = Date.now();
+    for (let f = 0; f < 120; f++) { X.simFrame(1 / 60, 50); maxDt = Math.max(maxDt, W.dt);
+      for (const o of os) if (!o.dead && (Math.abs(o.x) > W.box.w / 2 + 1e-6 || Math.abs(o.y) > W.box.h / 2 + 1e-6 || (d3 && Math.abs(o.z) > W.box.d / 2 + 1e-6))) inside = false; }
+    res[(d3 ? '3-D ' : '') + wall] = { alive: os.filter(o => !o.dead).length, inside, tu: +(W.t - t0).toFixed(1), ms: Date.now() - r0 };
+  }
+  const closed = Object.entries(res).filter(([k]) => !/open/.test(k)), open = Object.entries(res).filter(([k]) => /open/.test(k));
+  check(closed.every(([, r]) => r.alive === 5 && r.inside && r.tu > 170) && open.every(([, r]) => r.alive === 0), `1.39.1 an axion, a WIMP, a strangelet, a monopole and a sexaquark stay in a reflecting or wrapping box, flat and 3-D, for 2 s, and the world runs at full speed (${closed.map(([k, r]) => `${k} ${r.tu} tu, ${r.ms} ms`).join('; ')}); with open walls all leave`,
+    `1.39.1 kept: ${JSON.stringify(res)}`);
+  // the axion's conversion along its zigzag: the same sin²(gBL/2), L its whole path
+  const X = load('all', { seed: 6 }), W = X.W; X.PRESETS.empty.build(); W.decayOn = false; W.gamma = 0; W.Bz = 0.5; W.wall = 'reflect';
+  let conv = 0, Ls = []; const N = 200;
+  for (let k = 0; k < N; k++) { W.exo.length = 0; const o = X.addExo('axion', 0, 0, 1e4, 0.6, 0.8); for (let s = 0; s < 20 && !o.dead; s++) X.step(0.01); if (o.dead) conv++; }
+  const L = 20 * 0.01 * X.PHYS.C, a = X.DKM.gAg * X.DKM.axBoost * 0.5 * L * X.DKM.axK, P = Math.sin(a) ** 2;
+  check(Math.abs(conv / N - P) < 4 * Math.sqrt(P * (1 - P) / N) + 0.02, `1.39.1 an axion bouncing in a 0.5 T box for ${L.toFixed(0)} Å of path turns into a photon ${(100 * conv / N).toFixed(0)}% of the time (sin²(gBL/2): ${(100 * P).toFixed(0)}%)`, `1.39.1 kept axion: ${conv / N} vs ${P}`);
+};
+PARTS.inside = async (page, check) => { // (1.39.1 item 104: a particle view and an Inside close-up for the new particles)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    loadPreset('empty'); setRunning(false); showTab('inspect'); if (R.view.bohr !== 'nuc') toggleParticleView(); R.s = 200;
+    const out = {}, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+    for (const sp of ['slet', 'Sx', 'X3872', 'Tcc', 'Pc4312', 'dstar', 'LL6He', 'ahy1_2', 'mono', 'wimp', 'axion', 'Ap']) {
+      W.exo.length = 0; const o = fireSpec({ kind: 'exo', sp }, 0, 0, 1, 0, 1e-3, false); o.KE = 0; o.v = 0; o.stop = true;
+      R.sel = null; R.selX = { kind: 'exo', o, t0: W.rt }; renderInspect(); await new Promise(res => setTimeout(res, 30));
+      const h = [...document.querySelectorAll('#tp-inspect section')].find(e => /^Inside/.test((e.querySelector('h3') || {}).textContent || ''));
+      out[sp] = { view: exoInside(ctx, o, 50, 50, XP[sp].col, '#ffffff'), head: h ? h.querySelector('h3').textContent : '', note: h ? h.textContent : '', n: QV.qs ? QV.qs.length : 0,
+        cols: QV.qs ? [0, 1, 2].map(c => QV.qs.filter(q => !q.anti && q.col === c).length - QV.qs.filter(q => q.anti && q.col === c).length) : [] };
+      if (h) out[sp].n = QV.qs.length;
+    }
+    return out;
+  });
+  const lep = Object.entries(r).filter(([, v]) => /lepton/.test(v.note)).map(([k]) => k), noView = Object.entries(r).filter(([, v]) => !(v.view > 0)).map(([k]) => k);
+  const quark = ['slet', 'Sx', 'X3872', 'Tcc', 'Pc4312', 'dstar'].every(k => /quarks and gluons/.test(r[k].head) && !/a quark and an antiquark/.test(r[k].note));
+  const neutral = ['Sx', 'X3872', 'Tcc', 'Pc4312', 'dstar'].every(k => r[k].cols.every((c, i, a) => c === a[0])); // (colourless: as many of each colour, net of anticolours)
+  const sl = r.slet.n === 60 && /22 up, 19 down, 19 strange/.test(r.slet.note), fund = ['mono', 'wimp', 'axion', 'Ap'].every(k => /Hypothetical/.test(r[k].note)) && /’t Hooft/.test(r.mono.note);
+  const hyN = !r.LL6He.head && !r.ahy1_2.head;
+  check(!lep.length && !noView.length && quark && neutral && sl && fund && hyN, `1.39.1 the particle view draws every new particle (a strangelet's 60 quarks, the compact sexaquark, the tetraquarks as two mesons, ⁶ΛΛHe's two Λ, the antihypernucleus, the monopole's field lines); Inside shows the strangelet's 22 u, 19 d, 19 s, multiquarks as tetra-/penta-/hexaquarks, colourless (no longer "a quark and an antiquark"), and notes for the WIMP, axion, dark photon and monopole (none called a lepton)`,
+    `1.39.1 inside: lepton ${lep} noView ${noView} quark ${quark} neutral ${neutral} slet ${sl} fund ${fund} hyN ${hyN} ${JSON.stringify(r).slice(0, 900)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.1 inside errors: ' + own.errors.join(' | ')); await own.browser.close(); }
 };
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {

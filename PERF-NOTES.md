@@ -2069,6 +2069,31 @@ Inspect render, pinned cards too; the size measured once a symbol and kept): mon
 A′(17) 23, Tcc⁺ and Pcs⁰ 26; short symbols keep 30 px. A scan of the page with every long-labelled particle selected,
 placed and inspected, with Made here and the beam picker open, found no other text running out of its box (it found the
 tiles before the fix). Test: f_139.js tile.
+**Item 104: a particle view and an Inside close-up for the new particles** (the owner, 2026-11-24; "build the items i
+said earlier"). Particle view (`exoInside`): a strangelet as its 3A quarks in one bag the size of a nucleus of A (a
+sunflower's spread; strange quarks ringed; `sletInside`), the sexaquark as a compact six-quark bag (0.6 of a proton's), the
+X(3872) and Tcc± as two mesons side by side (the molecule reading: c ū with c̄ u; c ū with c d̄), ⁶ΛΛHe as its α with two
+Λ, anti-⁴ΛH as an antinucleus with a Λ̄ (`hypN`), the WIMP, axion and dark photon as points, the monopole as a point with
+its field lines all out. Inside (Inspect): the strangelet's quarks (A = 20: 22 u, 19 d, 19 s, as its charge says: N_u =
+A + Z; `sletQuarks`), its bag's size in the scale line (2.4 A^⅓ fm), and why strange quarks would make it stable; notes for
+the WIMP, axion, dark photon and monopole (Dirac's a point; a GUT one has a core, 10⁻³¹ m), which said "a lepton" before.
+Fixed on the way for every multiquark (the pentaquarks and d*(2380) too): its note said "a quark and an antiquark", the
+colour charges all started red (now quarks red, green, blue in turn and antiquarks the anticolours: colourless), the
+strings met at a third of the sum of positions (now their middle), and a gluon between two quarks of a multiquark made
+them one colour (now they swap, as in a baryon). ⁶ΛΛHe and anti-⁴ΛH show no Inside, as other hypernuclei. Test:
+f_139.js inside.
+
+**Item 105: the hypothetical particles stay in a closed box** (the owner: "make it so those particles stay in the box if
+it's not on open mode"). They bounce off reflecting walls and cross a wrapping box (flat and 3-D); open walls let them
+out. `hypoFly` flies each one's step in pieces of at most 0.4 of the box's smallest half-width, turning it at a wall and
+meeting what it would on each piece (WIMP recoils, the axion's field, the strangelet's neutrons, the monopole's
+ionization, placed objects): an axion at c crosses a 40 Å box 15 times in a 0.02 tu step. They no longer shorten the
+world's step, hold time back or trigger the birth slow-down (`hypoKept`): with a bouncing axion in it, the empty box
+dropped to 0.009 tu in 5 frames before that change and runs at its full 90 tu/s after (about 1.5 ms a frame for the
+axion's pieces). The axion's path now counts its whole length (v·h, not the chord): in a 0.5 T box over 6104 Å it converts
+58% of the time, sin²(gBL/2) 59% (the chord gave 51%). Its conversion is one way (a photon is not turned back into an
+axion), so in a long enough field every axion converts, once gBL/2 passes π/2. Test: f_139.js kept; f_139.js hypo now
+opens the walls for its sexaquark that leaves.
 
 ### 1.39.1: the per-slot phases shared by pieces (the owner, 2026-11-22, "build it")
 The owner's benchmark with the per-thread line (20,000 waters, 16 threads, 0.51 ms a step this time against 0.56 the
@@ -4670,11 +4695,19 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    because it's quarks)"). Strangelet: its ~3A quarks (u, d, s about equal) in one bag, growing as it eats; sexaquark and
    the found tetraquarks from their quark content (check what shows today); ⁶ΛΛHe and anti-⁴ΛH as hypernuclei (two Λ, an
    antinucleus); WIMP, axion, dark photon: "nothing inside" notes as for leptons; monopole: Dirac's is a point, a GUT
-   ('t Hooft–Polyakov) one has a core. Display only. Waiting for "build it".
+   ('t Hooft–Polyakov) one has a core. Display only. Built in 1.39.1.
 105. **The hypothetical particles stay in the box unless the walls are open** (the owner, 2026-11-24: "make it so those
    particles stay in the box if it's not on open mode"). Today every one leaves at a wall (`exoLeaves`). Plan: add them
    (`d.hypo`) to the moveExos/moveExos3 `kept` set that already keeps muonic hydrogen and slow muons in: they bounce off
-   reflecting walls, cross a wrapping box, leave only through open walls; flat and 3-D. Waiting for "build it".
+   reflecting walls, cross a wrapping box, leave only through open walls; flat and 3-D. Built in 1.39.1.
+106. **A choice of mass units: u or MeV/c²** (the owner, 2026-11-24: "add an option change what mass is (amu or
+   mev/c^2)"). A Settings choice for every mass shown (Inspect cards, tables, Data); u today for atoms and molecules,
+   MeV/c² for particles. Waiting for "build it".
+107. **A shorter particle-category bar** (the owner, 2026-11-24, a screenshot of the 13 drop-downs Leptons … Hypothetical:
+   "compacting these a bit more, maybe combining a few or putting these dropdowns under other more general dropdowns").
+   Proposal: five, each a menu of its groups with headings: Leptons (leptons, neutrinos), Hadrons (nucleons, mesons,
+   baryons, resonances, multiquarks), Nuclei (light nuclei, exotic atoms and hypernuclei), Forces and light (bosons,
+   light), and Antimatter and hypothetical. Waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,

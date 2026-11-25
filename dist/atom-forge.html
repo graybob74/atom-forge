@@ -12462,7 +12462,7 @@ function chooseDt() {
   if (zoned) for (const s of W.sources) if (s.count > 0 && s.rate > 0) dt = Math.min(dt, 0.9 / s.rate); // (an injector sends in one particle a step)
   if (_stiff > 0) dt = Math.min(dt, 0.15 / Math.sqrt(_stiff));
   if (_mdL.length) dt = Math.min(dt, KMAX * innerDt());
-  for (const o of W.exo) if (!o.dead && o.v > 0) dt = Math.min(dt, (o.xb && zoned ? 1.5 : 0.04 * Math.min(W.box.w, W.box.h)) / o.v); // (in a beam: as beams in an accelerator, 1.15) unstable particles in flight at near c: steps short enough that they cross the box in dozens of steps, not one
+  for (const o of W.exo) if (!o.dead && o.v > 0 && !hypoKept(o)) dt = Math.min(dt, (o.xb && zoned ? 1.5 : 0.04 * Math.min(W.box.w, W.box.h)) / o.v); // (in a beam: as beams in an accelerator, 1.15) unstable particles in flight at near c: steps short enough that they cross the box in dozens of steps, not one
   return Math.max(DT_MIN, dt);
 }
 
@@ -14205,7 +14205,7 @@ function holdFactor(realDt) {
     if (win && (p.nucProd || (!p.beam && p.born >= win.t0 && p.born <= win.t1))) continue;
     if (sp > v) v = sp;
   }
-  if (!win) for (const o of W.exo) if (!o.dead) v = Math.max(v, o.v); // (unstable particles in flight count like anything else fast)
+  if (!win) for (const o of W.exo) if (!o.dead && !hypoKept(o)) v = Math.max(v, o.v); // (unstable particles in flight count like anything else fast)
   for (const s of W.sources) { // what an injector is about to send in counts already
     if (s.count <= 0 || !(s.KE > 0)) continue;
     const k = s.spec.kind, m = k === 'gamma' ? 0 : k === 'e' || k === 'pos' ? PHYS.ME : k === 'exo' ? XP[s.spec.sp].m / PHYS.AMU_MEV : (s.spec.A || 1), g = m ? 1 + s.KE / (m * AMU_EV) : Infinity;
@@ -14229,7 +14229,7 @@ function eventSlow(realDt) {
       if (p.dead || p.born < S.t0 - 1e-9 || (p.k !== NUC && !p.rad)) continue; // stray slow electrons don't hold time up
       v = Math.max(v, speedNow(p)); // (3-D: with its depth and true speed, 1.26 bug fix)
     }
-    for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
+    for (const o of W.exo) if (!o.dead && o.born >= S.t0 - 1e-9 && !hypoKept(o)) v = Math.max(v, o.v); // pions, kaons, muons in flight: near c, so a frame moves them 2% of the box too
     want = v > 0 ? clamp(0.02 * Math.min(W.box.w, W.box.h) / (v * base), 1 / 50000, 1) : 1; // (against the setup's normal speed, as the slow-motion button: the products cross about 2% of the box a frame at 1×, and the speed buttons scale that, 0.91; it was against the speed as set, which cancelled them out)
     if (want > 0.99 && age > 0.25) S.on = false;
   } else S.on = false;
@@ -29241,8 +29241,8 @@ function hypSpecies(Z, N) { // the core (Z, N) with a Λ: its XP entry, made whe
    6.91 MeV; it decayed to ⁵ΛHe p π⁻; its mean life is not measured: two Λ, about half a ⁵ΛHe's), and antihyperhydrogen-4
    (STAR 2024: p̄ n̄ n̄ Λ̄, seen by its decay to anti-⁴He π⁺; mean life as ⁴ΛH's, 218 ps, STAR 2022, CPT). */
 hypSpecies(2, 2); hypSpecies(1, 2);
-XP.LL6He = { lab: '⁶ΛΛHe', m: nucMeV(2, 2) + 2 * LAM_M - 6.91, q: 2, B: 6, tau: 1.4e-10, col: [210, 140, 255], cc: 'LL6He', BLL: 6.91, dec: [[0.6, ['hy2_2', 'p', 'pi-']], [0.4, ['hy2_2', 'n', 'pi0']]] };
-XP.ahy1_2 = { lab: '⁴Λ̄H̄', m: nucMeV(1, 2) + LAM_M - hypB(4), q: -1, B: -4, tau: 2.18e-10, col: [255, 140, 220], cc: 'hy1_2', dec: [[0.5, ['abar', 'pi+']], [0.5, ['tbar', 'pbar', 'pi+']]] };
+XP.LL6He = { hypN: { Z: 2, N: 2, nL: 2 }, lab: '⁶ΛΛHe', m: nucMeV(2, 2) + 2 * LAM_M - 6.91, q: 2, B: 6, tau: 1.4e-10, col: [210, 140, 255], cc: 'LL6He', BLL: 6.91, dec: [[0.6, ['hy2_2', 'p', 'pi-']], [0.4, ['hy2_2', 'n', 'pi0']]] };
+XP.ahy1_2 = { hypN: { Z: 1, N: 2, nL: 1, anti: true }, lab: '⁴Λ̄H̄', m: nucMeV(1, 2) + LAM_M - hypB(4), q: -1, B: -4, tau: 2.18e-10, col: [255, 140, 220], cc: 'hy1_2', dec: [[0.5, ['abar', 'pi+']], [0.5, ['tbar', 'pbar', 'pi+']]] };
 const hypMesonic = (A) => (A <= 4 ? 0.85 : A <= 12 ? 0.3 : A <= 40 ? 0.08 : 0.02); // (Pauli blocking of the nucleon from Λ → Nπ)
 /* (1.25) The nearest atom within R of a stopped particle o that skip() does not rule out: in the plane, or in 3-D. */
 function stopTarget(o, skip, R = 4) {
@@ -30025,7 +30025,7 @@ function exoScatter(o, x0, y0) {
    WIMP: elastic recoils off nuclei, spin-independent, coherent: σ_A = σ_n A² (μ_A/μ_n)², with σ_n = 2.2×10⁻⁴⁸ cm² (LZ
    2024, 90% limit at 40 GeV), so xenon is struck ~10⁷ times as often as hydrogen; isotropic in their centre of mass.
    Shown 10²³ times as often (DKM.boost; off in ultra-realistic, where none will be seen in a box this size).
-   Axion: in a magnetic field it turns into a photon of its energy (Primakoff), P = sin²(g B⊥ L / 2) along its path,
+   Axion: in a magnetic field it turns into a photon of its energy (Primakoff), P = sin²(g B⊥ L / 2) along its path (one way: a photon is not turned back, so in a long enough field every axion converts),
    g = 5.8×10⁻¹¹ GeV⁻¹ (CAST 2024, the limit); shown with g 10¹⁷ times larger (off in ultra-realistic).
    Strangelet: a neutron it touches is swallowed (no Coulomb barrier), the binding out as a γ; the charge it keeps.
    Monopole: Dirac's magnetic charge, 68.5 e: it ionizes as an electric charge of 68.5 β would (Bethe: a loss that hardly
@@ -30034,9 +30034,36 @@ function exoScatter(o, x0, y0) {
 const DKM = { sigN: 2.2e-48, boost: 1e23, gAg: 5.8e-11, axBoost: 1e17, monoG: 68.5, axK: 1e-9 * 195.35 * 5.0677e-4 / 2 };
 function darkStep(o, d, x0, y0, z0, h) {
   if (d.dark === 'wimp') return wimpStep(o, x0, y0, z0);
-  if (d.dark === 'axion') return axionStep(o, x0, y0, z0);
+  if (d.dark === 'axion') return axionStep(o, x0, y0, z0, h);
   if (d.dark === 'slet') return sletStep(o, x0, y0, z0);
   if (d.dark === 'mono') { monoStep(o, x0, y0, z0, h); return o.dead; }
+  return false;
+}
+/* (1.39.1, item 105; the owner: "make it so those particles stay in the box if it's not on open mode") A hypothetical
+   particle in a box with walls flies its step in pieces no longer than a fifth of the box, each turned back at a reflecting
+   wall or carried across a wrapping one, and meets on each piece what it would (darkStep, placed objects): an axion at c
+   crosses a 40 Å box 15 times in a 0.02 tu step. Returns true if it is gone. */
+/* One kept in a closed box flies in its own short pieces (hypoFly), so it neither shortens the world's step nor holds time
+   back: a bouncing axion at c would otherwise slow the whole box ~500 times for as long as it is there. */
+function hypoKept(o) { return !o.xb && W.wall !== 'open' && !!XP[o.sp].hypo; }
+function hypoFly(o, d, h) {
+  o._sub = true;
+  if (!(h > 0)) return false;
+  const d3 = W.d3, H = d3 ? [W.box.w / 2, W.box.h / 2, W.box.d / 2] : [W.box.w / 2, W.box.h / 2], ax = d3 ? ['x', 'y', 'z'] : ['x', 'y'];
+  const L = Math.max(1e-6, 0.4 * Math.min(...H)), n = Math.min(400, Math.max(1, Math.ceil(o.v * h / L))), hs = h / n, wrap = W.wall === 'wrap';
+  for (let k = 0; k < n; k++) {
+    const xs = o.x, ys = o.y, zs = o.z || 0;
+    if (d3) flyExo3(o, hs); else flyExo(o, hs);
+    if (o.dead) return true;
+    let crossed = false;
+    for (let j = 0; j < ax.length; j++) {
+      const a = ax[j], m = H[j]; if (Math.abs(o[a]) <= m) continue;
+      if (wrap) { o[a] -= Math.sign(o[a]) * 2 * m; crossed = true; } else { o[a] = Math.sign(o[a]) * (2 * m - Math.abs(o[a])); o['u' + a] = -o['u' + a]; }
+    }
+    if (crossed) continue; // (the path jumped across the box: nothing met on it this piece)
+    if (!d3 && W.objs.length && objExo(o, xs, ys)) return true;
+    if (d.dark && darkStep(o, d, xs, ys, zs, hs)) return true;
+  }
   return false;
 }
 function darkSeg(o, x0, y0, z0, filter) { // (nuclei along its path this step, [t, target, b])
@@ -30077,13 +30104,13 @@ function wimpStep(o, x0, y0, z0) {
   }
   return false;
 }
-function axionStep(o, x0, y0, z0) {
+function axionStep(o, x0, y0, z0, h) {
   const xm = (x0 + o.x) / 2, ym = (y0 + o.y) / 2, zm = W.d3 ? (z0 + o.z) / 2 : 0;
   const B = W.d3 ? Bfield3(xm, ym, zm, null) : Bfield(xm, ym, null);
   if (!B) return false;
   let Bp = Math.abs(B); // (the flat game's field is along z, across every path in the plane)
   if (W.d3) { const ua = o['u' + (W.Bax3 || 'z')] || 0; Bp *= Math.sqrt(Math.max(0, 1 - ua * ua)); }
-  const ds = W.d3 ? Math.hypot(o.x - x0, o.y - y0, o.z - z0) : Math.hypot(o.x - x0, o.y - y0);
+  const ds = h > 0 ? o.v * h : W.d3 ? Math.hypot(o.x - x0, o.y - y0, o.z - z0) : Math.hypot(o.x - x0, o.y - y0); // (its path: straight, so v·h, also when a wall turned it back on the way, 1.39.1)
   const a0 = o.axA || 0, a1 = a0 + DKM.gAg * (W.ultra ? 1 : DKM.axBoost) * Bp * ds * DKM.axK;
   o.axA = a1;
   const P0 = Math.sin(a0) ** 2, P1 = Math.sin(a1) ** 2;
@@ -31395,12 +31422,13 @@ function moveExos(dt, id0) {
     }
     const d = XP[o.sp], x0 = o.x, y0 = o.y;
     if (dec && exoHeld(o)) { dec = false; h = dt; o.wait = true; } // (held to be seen: it flies the whole step, and may decay in a later one)
-    if (o.xb) { moveExoBeam(o, h); nXb++; } else flyExo(o, h);
-    if (W.objs.length && !o.xb && objExo(o, x0, y0)) continue; // (placed objects: props.js)
+    if (d.hypo && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
+    else if (o.xb) { moveExoBeam(o, h); nXb++; } else flyExo(o, h);
+    if (W.objs.length && !o.xb && !o._sub && objExo(o, x0, y0)) continue; // (placed objects: props.js)
     if (o.wait && (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh)) { o.x = clamp(o.x, -hw, hw); o.y = clamp(o.y, -hh, hh); dec = true; } // (one held back that reaches the wall decays there: it would have inside)
     if (d.res && !dec && !W.ultra && !deepSlow()) continue; // (a held resonance: only flies) (ultra-realistic: resonances fly and decay on the clock, with their own mean lives, ħ/Γ)
     if (o.x < -hw || o.x > hw || o.y < -hh || o.y > hh) {
-      const kept = d.atom || d.hyp || d.muonium || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.hypo || d.muonium || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { if (Math.abs(o.x) > hw) o.x -= Math.sign(o.x) * 2 * hw; if (Math.abs(o.y) > hh) o.y -= Math.sign(o.y) * 2 * hh; } // (a periodic box: across, as atoms go (the trail is drawn across the edge as theirs is); muonic hydrogen left the box there, its energy escaped, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (a slow muon would stop in the wall's matter: kept in instead)
       else if (Math.abs(o.x) > hw) { o.x = Math.sign(o.x) * (2 * hw - Math.abs(o.x)); o.ux = -o.ux; } // (muonic hydrogen, slow and neutral, bounces off the walls as atoms do)
@@ -31410,7 +31438,8 @@ function moveExos(dt, id0) {
     if (o.spin && RP.mu) muSpinTurn(o, clock * h / dt / o.gam); // (μSR: the μ⁺'s spin precesses, in its own time, up to its decay, 1.27)
     if (dec) { if (d.hyp) hypDecay(o); else decayExo(o); continue; }
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (a beam's: in the ring's vacuum; thrown out of the beam, the detector stops it)
-    if (d.dark && darkStep(o, d, x0, y0, 0, h)) continue; // (1.39, item 103)
+    if (o._sub) o._sub = false; // (hypoFly met everything on its way already)
+    else if (d.dark && darkStep(o, d, x0, y0, 0, h)) continue; // (1.39, item 103)
     const xa = RP.exo && XA_SPS.has(o.sp);
     if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch: caught at tens of eV into an orbit, 1.27)
     else {
@@ -31643,12 +31672,13 @@ function moveExos3(dt, id0) {
     if (o.stop) h = 0; // (at rest: it waits for its decay)
     const x0 = o.x, y0 = o.y, z0 = o.z;
     if (o.xb) nXb++;
-    if (o.xb) moveExoBeam3(o, h); // (a collider's beam: through the magnets and cavities, 1.37 item 100b; it flew straight, as if they were not there)
+    if (d.hypo && !o.xb && W.wall !== 'open') { if (hypoFly(o, d, h)) continue; } // (kept in a closed box, in short steps, 1.39.1 item 105)
+    else if (o.xb) moveExoBeam3(o, h); // (a collider's beam: through the magnets and cavities, 1.37 item 100b; it flew straight, as if they were not there)
     else if (h > 0) flyExo3(o, h);
     if (o.wait && out(o)) { o.x = clamp(o.x, -H[0], H[0]); o.y = clamp(o.y, -H[1], H[1]); o.z = clamp(o.z, -H[2], H[2]); dec = true; }
     if (d.res && !dec && !W.ultra && !deepSlow()) continue;
     if (out(o)) {
-      const kept = d.atom || d.hyp || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
+      const kept = d.atom || d.hyp || d.hypo || d.ps || d.pn || ((o.sp === 'mu-' || o.sp === 'mu+' || o.sp === 'K-' || H_STOP.has(o.sp)) && o.KE < 2 * MU_STOP);
       if (kept && W.wall === 'wrap') { for (const [k, h] of [['x', H[0]], ['y', H[1]], ['z', H[2]]]) if (Math.abs(o[k]) > h) o[k] -= Math.sign(o[k]) * 2 * h; } // (a periodic box: across, as atoms go, 1.26 bug fix)
       else if (!(kept && W.wall === 'reflect')) { exoLeaves(o); continue; } // (as in the flat game: slow muons and muonic hydrogen kept in, 1.25)
       else if (Math.abs(o.x) > H[0]) { o.x = Math.sign(o.x) * (2 * H[0] - Math.abs(o.x)); o.ux = -o.ux; }
@@ -31661,7 +31691,8 @@ function moveExos3(dt, id0) {
     if (o.xb) { if (o.caught && !inDetector(W.collider || {}, o.x, o.y)) { o.fate = 'stopped in the detector'; exoLeaves(o, 'qObj'); } continue; } // (as in the flat game)
     // captures at rest and nuclear hits, as in the flat game (1.25): a stopped μ⁻ makes a muonic atom, K⁻ and π⁻, Σ⁻, Ξ⁻, Ω⁻ are
     // absorbed by a nucleus, a μ⁺ may take an electron (muonium); strongly interacting ones meet the nuclei on their path
-    if (d.dark && darkStep(o, d, x0, y0, z0, h)) continue; // (1.39, item 103)
+    if (o._sub) o._sub = false; // (hypoFly met everything on its way already)
+    else if (d.dark && darkStep(o, d, x0, y0, z0, h)) continue; // (1.39, item 103)
     const xa = RP.exo && XA_SPS.has(o.sp);
     if (xa) { if (xaStep(o)) continue; } // (the realistic-particle switch, 1.27)
     else {
@@ -35728,6 +35759,32 @@ function exoInside(ctx, o, x, y, c, hx) {
     drawSprite(ballSprite(E_COL, electronR()), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
     return R0 + 2;
   }
+  if (d.hypN) { // (1.39.1 item 104) ⁶ΛΛHe, anti-⁴ΛH: its nucleons (antinucleons), its Λ (Λ̄) ringed at the middle
+    const h = d.hypN, nsp = nucleusSprite(h.Z, h.N, b, !!h.anti);
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(7, nsp.rn * 3)), x, y, 0.4);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSprite(nsp, x, y);
+    const lk = h.anti ? 'Lamb' : 'Lam', lc = _xpHex[lk] || (_xpHex[lk] = '#' + XP[lk].col.map(v => v.toString(16).padStart(2, '0')).join(''));
+    for (let k = 0; k < h.nL; k++) {
+      const lx = x + (h.nL > 1 ? (k ? 0.55 : -0.55) * b : 0);
+      drawSprite(ballSprite(lc, b), lx, y);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(lx, y, b * 1.05, 0, Math.PI * 2); ctx.stroke();
+    }
+    return nsp.rn + 2;
+  }
+  if (o.sp === 'slet') return sletInside(ctx, o, x, y, c, b);
+  if (d.hypo && !(typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp])) { // (WIMP, axion, dark photon, monopole: points, as leptons; a monopole with its field lines, all out (a north pole))
+    const rl = Math.max(1.6, electronR() * 1.3);
+    ctx.globalCompositeOperation = 'lighter';
+    if (!R.lite) drawSprite(glowSprite(c, Math.max(6, rl * 4)), x, y, 0.45);
+    ctx.globalCompositeOperation = 'source-over';
+    if (o.sp === 'mono') { const L = Math.max(8, rl * 6); ctx.strokeStyle = rgba(c, 0.55); ctx.lineWidth = 1; ctx.beginPath();
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.2; ctx.moveTo(x + rl * 1.5 * Math.cos(a), y + rl * 1.5 * Math.sin(a)); ctx.lineTo(x + L * Math.cos(a), y + L * Math.sin(a)); }
+      ctx.stroke(); }
+    drawSprite(ballSprite(hx, rl), x, y);
+    return o.sp === 'mono' ? Math.max(8, rl * 6) + 2 : rl + 2;
+  }
   if (/^(mu|tau)[+-]$/.test(o.sp)) { // a muon or tau: a lepton, with nothing inside (point-like, as an electron)
     const rl = Math.max(1.6, electronR() * 1.3);
     ctx.globalCompositeOperation = 'lighter';
@@ -35738,12 +35795,35 @@ function exoInside(ctx, o, x, y, c, hx) {
   }
   const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
   if (!qc) return 0;
+  if (qc.length === 4) { // (a tetraquark, 1.39.1: two mesons side by side, the "molecule" reading, as the X(3872) and Tcc⁺ sit at their thresholds)
+    const sx = b * 0.75, t1 = exoBag(ctx, o, x - sx, y, c, b * 0.85, qc[0] + qc[3], 0), t2 = exoBag(ctx, o, x + sx, y, c, b * 0.85, qc[1] + qc[2], 2);
+    return Math.max(t1, t2) + 2;
+  }
+  if (o.sp === 'Sx' || o.sp === 'Sxb') return exoBag(ctx, o, x, y, c, b * 0.6, qc, 0); // (the sexaquark: compact, smaller than a proton, 1.39.1)
   if (qc.length === 5) { // (a pentaquark, 1.28.3: its baryon and its meson side by side, the "molecule" reading)
     const sx = b * 0.95;
     const t1 = exoBag(ctx, o, x - sx, y, c, b, qc.slice(0, 3), 0), t2 = exoBag(ctx, o, x + sx * 1.1, y, c, b * 0.8, qc.slice(3), 3);
     return Math.max(t1, t2) + 2;
   }
   return exoBag(ctx, o, x, y, c, b, qc, 0);
+}
+/* A strangelet (1.39.1 item 104): its 3A quarks in one bag the size of a nucleus of A (u, d, s about equal; a strange
+   quark ringed), spread as a sunflower's seeds, turning slowly. */
+function sletInside(ctx, o, x, y, c, b) {
+  const A = o.A || XP.slet.B, n = 3 * A, rb = b * 1.15 * Math.cbrt(A), qr = Math.max(0.7, rb * 0.95 / Math.sqrt(n) * 0.8);
+  ctx.globalCompositeOperation = 'lighter';
+  if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 2.2)), x, y, 0.35);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = rgba(c, 0.14); ctx.strokeStyle = rgba(c, 0.8); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (rb < 3) return rb + 2;
+  const qs = sletQuarks(A, o.q), rot = W.at * 0.3 + o.id;
+  for (let k = 0; k < n; k++) {
+    const r = rb * 0.92 * Math.sqrt((k + 0.5) / n), a = k * 2.39996 + rot, qx = x + r * Math.cos(a), qy = y + r * Math.sin(a);
+    drawSprite(ballSprite(Q_COL[k % 3], qr), qx, qy);
+    if (qs[k] === 's' && qr > 1.5) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.6, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  return rb + 2;
 }
 /* One bag of quarks (a hadron, or one part of a pentaquark): its colour charges as the hadron's, a strange quark ringed. */
 function exoBag(ctx, o, x, y, c, b, qc, k0) {
@@ -42866,8 +42946,10 @@ const Q_CONTENT = { p: 'uud', n: 'udd', pbar: 'UUD', nbar: 'UDD', 'pi+': 'uD', '
   'Lc+': 'udc', 'Lcb-': 'UDC', Bs0: 'sB', Bsb0: 'bS', Lb0: 'udb', Lbb0: 'UDB', Jpsi: 'cC', Ups: 'bB' }; // (the heavy hadrons of Realistic particles 5, 1.27) (capitals: antiquarks; the resonances (ρ, ω, φ, K*, Δ) as their ground-state partners, excited)
 const QV = { subj: null, key: '', qs: [], g: null, sea: [], drag: null, out: null, t: 0, msg: '', orig: '', pick: 'p', last: 0 };
 function qSubject(p, X) { // what to look inside: { key, content, name, note }
-  if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck || XP[X.o.sp].hyp)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
+  if (X && X.kind === 'exo' && (XP[X.o.sp].atom || XP[X.o.sp].stuck || XP[X.o.sp].hyp || XP[X.o.sp].hypN)) return null; // (a muonic atom: its nucleus is inside, too small to show here)
   if (X && X.kind === 'exo' && XP[X.o.sp].ew) return { key: 'x' + X.o.id, boson: true, higgs: X.o.sp === 'H0' }; // (W and Z: fundamental, 1.27; the Higgs boson, feature 25)
+  if (X && X.kind === 'exo' && X.o.sp === 'slet') { const A = X.o.A || XP.slet.B; return { key: 'x' + X.o.id + 'A' + A, content: sletQuarks(A, X.o.q), o: X.o, slet: A, head: `Inside its ${3 * A} quarks` }; } // (1.39.1 item 104)
+  if (X && X.kind === 'exo' && XP[X.o.sp].hypo && !Q_CONTENT[X.o.sp]) return { key: 'x' + X.o.id, fund: X.o.sp }; // (WIMP, axion, monopole, dark photon: nothing inside, 1.39.1)
   if (X && X.kind === 'exo') { const c = Q_CONTENT[X.o.sp]; return c ? { key: 'x' + X.o.id, content: c, o: X.o } : { key: 'x' + X.o.id, lepton: true }; }
   if (!p || p.k !== NUC || p.Z + p.N < 1) return null;
   if (p.mu) return { key: 'mu' + p.id, lepton: true, mu: true }; // (muonium: its nucleus is a μ⁺, a lepton with no quarks; it was shown as hydrogen's proton, uud, 1.26 bug fix)
@@ -42890,10 +42972,12 @@ function qName(content) {
 }
 function qReset(sub) {
   QV.key = sub.key; QV.orig = sub.content; QV.out = null; QV.drag = null; QV.msg = ''; QV.sea = []; QV.g = null; QV.t = 0;
+  let nq = 0, na = 0; // (colours: the quarks red, green, blue in turn, the antiquarks the anticolours, so any whole is colourless; more than three quarks too, 1.39.1)
   QV.qs = [...sub.content].map((c, i, a) => {
-    const anti = c === c.toUpperCase(), n = a.length, ang = 2 * Math.PI * i / n + 0.3;
-    return { f: c.toLowerCase(), anti, col: n === 3 ? i : 0, hx: 0.42 * Math.cos(ang), hy: 0.42 * Math.sin(ang), x: 0.42 * Math.cos(ang), y: 0.42 * Math.sin(ang), vx: 0, vy: 0, ph: rnd() * 6 };
+    const anti = c === c.toUpperCase(), n = a.length, ang = n > 6 ? i * 2.39996 : 2 * Math.PI * i / n + 0.3, r = n > 6 ? 0.66 * Math.sqrt((i + 0.5) / n) : 0.42; // (a big bag, a strangelet's: its quarks spread over it, a sunflower's seeds)
+    return { f: c.toLowerCase(), anti, col: anti ? na++ % 3 : nq++ % 3, hx: r * Math.cos(ang), hy: r * Math.sin(ang), x: r * Math.cos(ang), y: r * Math.sin(ang), vx: 0, vy: 0, ph: rnd() * 6 };
   });
+  QV.jig = QV.qs.length > 6 ? 0.03 : 0.18;
   if (QV.qs.length === 2) QV.qs[1].col = QV.qs[0].col;
 }
 function quarkSecHTML(sub) {
@@ -42901,6 +42985,7 @@ function quarkSecHTML(sub) {
   if (sub.mu) return `<section class="group"><h3>Inside its nucleus, a positive muon</h3><p class="note">Nothing: the muon (μ⁺) is a lepton, like the electron, 207 times heavier. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks, so this “nucleus” has no nucleons, and nothing in it can react as a nucleus does.</p></section>`;
   if (sub.boson && sub.higgs) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: the Higgs boson is fundamental, as the W and Z are: a ripple in the Higgs field itself, no quarks or gluons inside.</p></section>`; // (1.27 feature 25)
   if (sub.boson) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: the W and Z are fundamental, as the photon is, carriers of a force rather than things made of smaller parts; no quarks, no gluons inside. Their mass (80 and 91 GeV) comes from the Higgs field.</p></section>`; // (1.27)
+  if (sub.fund) return `<section class="group"><h3>Inside</h3><p class="note">${esc(FUND_NOTE[sub.fund] || FUND_NOTE.wimp)}</p></section>`; // (1.39.1 item 104)
   if (sub.lepton) return `<section class="group"><h3>Inside</h3><p class="note">Nothing: it is a lepton, like the electron. As far as any experiment has found, leptons are not made of anything smaller; they feel no strong force and have no quarks.</p></section>`;
   if (QV.key !== sub.key) qReset(sub);
   QV.subj = sub;
@@ -42911,6 +42996,7 @@ function quarkSecHTML(sub) {
     <p class="note" id="insQNote">${esc(qNote())}</p></section>`;
 }
 function qNote() {
+  if (QV.qs.length > 3) return (QV.msg ? QV.msg + ' ' : '') + qNoteMany() + ' (The picture is a sketch: the simulation does not follow quarks one by one.)';
   const qs = QV.qs, nm = qName(qs.map(q => q.anti ? q.f.toUpperCase() : q.f).join(''));
   const list = qs.map(q => { const c = (q.anti ? -1 : 1) * Q_CHG[q.f]; return `${q.anti ? Q_BAR[q.f] : Q_SYM[q.f]} (${c > 0 ? '+' : '−'}${Math.abs(c) > 0.5 ? '2/3' : '1/3'})`; }).join(', ');
   const chgTxt = qs.map(q => (q.anti ? -1 : 1) * Q_CHG[q.f]).reduce((a, b) => a + b, 0);
@@ -42919,6 +43005,32 @@ function qNote() {
     : `A ${nm.name} (${nm.sym}): a quark and an antiquark, ${list}. A colour and its anticolour make it colourless; it lives only until the weak or electromagnetic force lets it decay.`;
   return (QV.msg ? QV.msg + ' ' : '') + base + ' (The picture is a sketch: the simulation does not follow quarks one by one. Pulling one out does happen in the chamber, though: what it makes appears there.)';
 }
+/* (1.39.1 item 104) More than three quarks: a tetraquark, pentaquark, hexaquark or a strangelet. (It said "a quark and an
+   antiquark" for all of them.) */
+function qNoteMany() {
+  const qs = QV.qs, n = qs.length, chg = Math.round(qs.reduce((a, q) => a + (q.anti ? -1 : 1) * Q_CHG[q.f], 0)), cs = `${chg > 0 ? '+' : chg < 0 ? '−' : ''}${Math.abs(chg)}`;
+  const nq = qs.filter(q => !q.anti).length, na = n - nq, sub = QV.subj || {};
+  if (sub.slet) { const c = (f) => qs.filter(q => q.f === f).length;
+    return `A strangelet (hypothetical): ${n} quarks, ${c('u')} up, ${c('d')} down, ${c('s')} strange, in one bag, no nucleons inside. Charges add to ${cs}. Strange quarks lower its energy: with three kinds, more quarks fit in the lowest levels (the Pauli principle), which is why strange matter might be more stable than nuclei. A neutron it swallows adds three more.`; }
+  const kind = n === 4 ? 'tetraquark' : n === 5 ? 'pentaquark' : n === 6 ? (na ? 'six quarks' : 'hexaquark') : `${n}-quark state`;
+  const list = qs.map(q => q.anti ? Q_BAR[q.f] : Q_SYM[q.f]).join(' ');
+  const how = n === 4 ? 'Two quarks and two antiquarks: maybe one tight bag, maybe two mesons barely holding on to each other (a “molecule”); experiments are still telling which.'
+    : n === 5 ? 'Four quarks and an antiquark: maybe one bag, maybe a baryon and a meson held loosely together.'
+    : sub.o && sub.o.sp === 'Sx' || sub.o && sub.o.sp === 'Sxb' ? 'Six quarks in a bag much smaller than a proton (hypothetical): so tightly bound it would be lighter than two protons, stable, and barely touch other matter.'
+    : 'Six quarks: one bag, or two baryons stuck together.';
+  return `A ${kind}: ${list}; charges add to ${cs}. The colours add to colourless, as in every hadron. ${how}`;
+}
+const FUND_NOTE = {
+  wimp: 'Nothing, as far as anyone supposes: a WIMP would be a new fundamental particle, like the electron, with no quarks and no strong force; it touches matter only through the weak force (or something as weak). Hypothetical.',
+  axion: 'Nothing: an axion would be a fundamental particle, a ripple of a new field (proposed to explain why the strong force keeps time symmetry), far lighter than an electron. Hypothetical.',
+  Ap: 'Nothing: a dark photon would be fundamental, as the photon is, a carrier of a new force, with a small mass, that mixes a little with light. Hypothetical.',
+  mono: 'Dirac’s monopole is a point, as an electron is. The monopoles grand unified theories predict (’t Hooft–Polyakov) have a core: a knot of the unified force’s fields about 10⁻³¹ m across, holding almost all of their enormous mass (about 10¹⁶ GeV). Hypothetical.',
+};
+function sletQuarks(A, Z) { // (its quark content: 3A quarks, Z = N_u − A, so N_u = A + Z and the rest down and strange about equally; mixed)
+  const nu = A + (Z | 0), nd = Math.ceil((2 * A - (Z | 0)) / 2), ns = 3 * A - nu - nd, out = [];
+  for (let i = 0, a = [nu, nd, ns]; out.length < 3 * A; i++) { const k = i % 3; if (a[k] > 0) { out.push('uds'[k]); a[k]--; } }
+  return out.join('');
+}
 function qStep(dt) {
   QV.t += dt;
   const qs = QV.qs, n = qs.length, rot = 0.25 * dt;
@@ -42926,14 +43038,14 @@ function qStep(dt) {
     const c = Math.cos(rot), s = Math.sin(rot), hx = q.hx * c - q.hy * s, hy = q.hx * s + q.hy * c; q.hx = hx; q.hy = hy;
     if (QV.drag && QV.drag.q === q) continue;
     q.ph += dt * (2 + rnd());
-    const tx = q.hx + 0.18 * Math.sin(q.ph * 1.7), ty = q.hy + 0.18 * Math.cos(q.ph * 2.3);
+    const tx = q.hx + (QV.jig || 0.18) * Math.sin(q.ph * 1.7), ty = q.hy + (QV.jig || 0.18) * Math.cos(q.ph * 2.3);
     q.vx += (tx - q.x) * 40 * dt - q.vx * 6 * dt + (rnd() - 0.5) * 4 * dt; q.vy += (ty - q.y) * 40 * dt - q.vy * 6 * dt + (rnd() - 0.5) * 4 * dt;
     q.x += q.vx * dt; q.y += q.vy * dt;
   }
   // a gluon carries colour from one quark to another (three quarks: two swap colours; quark–antiquark: both change)
   if (!QV.g && !QV.drag && rnd() < dt * 2.2) { const a = Math.floor(rnd() * n); let b = (a + 1 + Math.floor(rnd() * (n - 1))) % n; QV.g = { a, b, t: 0 }; }
   if (QV.g) { QV.g.t += dt / 0.35; if (QV.g.t >= 1) { const A = qs[QV.g.a], B = qs[QV.g.b];
-    if (n === 3) { const t = A.col; A.col = B.col; B.col = t; } else { const c = (A.col + 1 + Math.floor(rnd() * 2)) % 3; A.col = c; B.col = c; }
+    if (A.anti === B.anti) { const t = A.col; A.col = B.col; B.col = t; } else { /* (two quarks, or two antiquarks: they swap colours; a quark and an antiquark: both change) */ const c = (A.col + 1 + Math.floor(rnd() * 2)) % 3; A.col = c; B.col = c; }
     QV.g = null; } }
   // the sea: virtual quark–antiquark pairs, there and gone
   if (rnd() < dt * 1.5 && QV.sea.length < 3) { const a = rnd() * 6.28, r = 0.6 * Math.sqrt(rnd()); QV.sea.push({ x: r * Math.cos(a), y: r * Math.sin(a), f: rnd() < 0.8 ? (rnd() < 0.5 ? 'u' : 'd') : 's', t: 0, a: rnd() * 6.28 }); }
@@ -42943,7 +43055,7 @@ function qStep(dt) {
   if (QV.out) { QV.out.t += dt; QV.out.x += QV.out.vx * dt; QV.out.y += QV.out.vy * dt; if (QV.out.t > 2.2) QV.out = null; }
 }
 function qAnchor(q) { const os = QV.qs.filter(o => o !== q); let x = 0, y = 0; for (const o of os) { x += o.x; y += o.y; } return [x / os.length, y / os.length]; } // (what a pulled quark is pulled away from)
-function qJunction() { const qs = QV.qs; if (qs.length === 2) return null; let x = 0, y = 0; for (const q of qs) { x += q.x; y += q.y; } return [x / 3, y / 3]; }
+function qJunction() { const qs = QV.qs; if (qs.length === 2) return null; let x = 0, y = 0; for (const q of qs) { x += q.x; y += q.y; } return [x / qs.length, y / qs.length]; } // (the middle of all of them: more than three too, 1.39.1)
 function qDraw(dt) {
   const cv = $('insQuarks'); if (!cv) return;
   if (dt > 0) qStep(Math.min(0.05, dt));
@@ -42959,7 +43071,7 @@ function qDraw(dt) {
   const tube = (x0, y0, q) => { const L = Math.hypot(q.x - x0, q.y - y0); ctx.strokeStyle = col(q); ctx.globalAlpha = 0.55; ctx.lineWidth = Math.max(2, 7 - 2.5 * L); ctx.shadowColor = col(q); ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(q.x), Y(q.y)); ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1; };
   const J = qJunction();
-  if (J) for (const q of qs) tube(J[0], J[1], q);
+  if (J && qs.length <= 6) for (const q of qs) tube(J[0], J[1], q);
   else { const [a, b] = qs, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; tube(mx, my, a); tube(mx, my, b); }
   // a gluon on its way: a wiggle from one quark to another
   if (QV.g) { const A = qs[QV.g.a], B = qs[QV.g.b], t = QV.g.t, gx = A.x + (B.x - A.x) * t, gy = A.y + (B.y - A.y) * t, L = Math.hypot(B.x - A.x, B.y - A.y) || 1, nx = -(B.y - A.y) / L, ny = (B.x - A.x) / L;
@@ -42973,9 +43085,11 @@ function qDraw(dt) {
     ctx.fillStyle = '#c8d2e6'; ctx.fillText(Q_SYM[v.f] + Q_BAR[v.f], X(v.x), Y(v.y) - 11); ctx.globalAlpha = 1; }
   // the quarks
   ctx.font = 'bold 13px ' + cssVar('--font-data');
-  for (const q of qs) { const x = X(q.x), y = Y(q.y), c = col(q), gr = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, 11);
-    gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, c); gr.addColorStop(1, c); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.29); ctx.fill();
-    ctx.fillStyle = '#0b0f16'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); }
+  const qrp = qs.length > 6 ? Math.max(4, 10 * Math.sqrt(6 / qs.length)) : 10; // (many quarks: smaller, to fit)
+  if (qrp < 10) ctx.font = `bold ${Math.max(7, Math.round(qrp * 1.3))}px ` + cssVar('--font-data');
+  for (const q of qs) { const x = X(q.x), y = Y(q.y), c = col(q), gr = ctx.createRadialGradient(x - 0.3 * qrp, y - 0.3 * qrp, 1, x, y, qrp * 1.1);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, c); gr.addColorStop(1, c); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, qrp, 0, 6.29); ctx.fill();
+    if (qrp >= 6) { ctx.fillStyle = '#0b0f16'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); } }
   // the string being pulled: its energy
   if (QV.drag) { const q = QV.drag.q, ref = qAnchor(q), L = Math.hypot(q.x - ref[0], q.y - ref[1]);
     ctx.fillStyle = '#ffd166'; ctx.font = '11px ' + cssVar('--font-data'); ctx.textAlign = 'left'; ctx.fillText(`string: ${(0.9 * Math.max(0, L - 0.4)).toFixed(2)} GeV (≈ 0.9 GeV per fm)`, 8, 12); }
@@ -42984,7 +43098,7 @@ function qDraw(dt) {
     ctx.beginPath(); ctx.moveTo(X(o.x - 0.12), Y(o.y)); ctx.lineTo(X(o.x + 0.12), Y(o.y)); ctx.stroke();
     for (const [i, q] of o.qs.entries()) { const x = X(o.x + (i ? 0.14 : -0.14)), y = Y(o.y); ctx.fillStyle = q.anti ? Q_ACOL[q.col] : Q_COL[q.col]; ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.29); ctx.fill(); ctx.fillStyle = '#0b0f16'; ctx.font = 'bold 11px ' + cssVar('--font-data'); ctx.textAlign = 'center'; ctx.fillText(q.anti ? Q_BAR[q.f] : Q_SYM[q.f], x, y + 1); }
     ctx.fillStyle = '#fff'; ctx.font = '11px ' + cssVar('--font-data'); ctx.fillText(o.name, X(o.x), Y(o.y) - 16); ctx.globalAlpha = 1; }
-  ctx.font = '10px ' + cssVar('--font-data'); ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(200,210,230,0.6)'; ctx.fillText('≈ 1.7 fm across (10⁻¹⁵ m)', w - 6, h - 8); ctx.textAlign = 'left';
+  ctx.font = '10px ' + cssVar('--font-data'); ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(200,210,230,0.6)'; ctx.fillText(QV.subj && QV.subj.slet ? `≈ ${(2.4 * Math.cbrt(QV.subj.slet)).toFixed(1)} fm across (10⁻¹⁵ m)` : QV.subj && QV.subj.o && (QV.subj.o.sp === 'Sx' || QV.subj.o.sp === 'Sxb') ? '≈ 0.5–1 fm across (10⁻¹⁵ m), if it exists' : '≈ 1.7 fm across (10⁻¹⁵ m)', w - 6, h - 8); // (a strangelet: as a nucleus of A, 1.2 fm·A^⅓ in radius; the sexaquark: compact, 1.39.1) ctx.textAlign = 'left';
   const nt = $('insQNote'); if (nt && (QV.t - QV.last > 0.5 || !nt.textContent)) { QV.last = QV.t; nt.textContent = qNote(); }
 }
 function qPointer(e, kind) {
