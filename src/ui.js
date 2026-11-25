@@ -1824,8 +1824,8 @@ function qName(content) {
     const sym = k[1] === 'p' ? (isAnti ? 'p̄' : 'p') : k[1] === 'n' ? (isAnti ? 'n̄' : 'n') : k[1] + (k[1] === 'Λ' ? '' : cs) + (isAnti ? ' (anti)' : '');
     return { name: (isAnti ? 'anti' : '') + k[0], sym, chg };
   }
-  const has = (x) => f.includes(x), M = has('b') ? ['B meson', 'B'] : has('c') ? (has('s') ? ['Ds meson', 'Ds'] : ['D meson', 'D']) : has('s') ? (f === 'ss' ? ['eta or phi', 'η/φ'] : ['kaon', 'K']) : ['pion', 'π'];
-  return { name: M[0], sym: M[1] === 'η/φ' ? M[1] : M[1] + cs, chg };
+  const has = (x) => f.includes(x), M = f === 'cc' && anti === 1 ? ['charmonium (J/ψ, η_c)', 'cc̄'] : f === 'bb' && anti === 1 ? ['bottomonium (ϒ)', 'bb̄'] : has('b') ? ['B meson', 'B'] : has('c') ? (has('s') ? ['Ds meson', 'Ds'] : ['D meson', 'D']) : has('s') ? (f === 'ss' ? ['eta or phi', 'η/φ'] : ['kaon', 'K']) : ['pion', 'π'];
+  return { name: M[0], sym: M[1] === 'η/φ' || M[1].length > 2 ? M[1] : M[1] + cs, chg }; // (charmonium, bottomonium: 1.39.2; the J/ψ's close-up said "a D meson")
 }
 function qReset(sub) {
   QV.key = sub.key; QV.orig = sub.content; QV.out = null; QV.drag = null; QV.msg = ''; QV.sea = []; QV.g = null; QV.t = 0;
@@ -2086,19 +2086,21 @@ function selXHTML() {
     const d = XP[o.sp], m = d.res && o.m > 0 ? o.m : d.m; // (a resonance: its own mass, drawn from its width, 1.27)
     title = XP_NAME[o.sp] || (d.hyp ? hypName(o.sp) : o.lab); sym = d.sym || o.lab; // (d.sym: a short symbol where the label is long, the pentaquarks', 1.28.3) col = `rgb(${d.col.join(',')})`;
     const beta = o.v / PHYS.C, life = d.tau * o.gam, path = beta * o.gam * 299792458 * d.tau;
-    kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', `${fmtMassMeV(m, 4)} (${fmtNum(m / 0.51099895, 4)} electron masses)${d.res && m !== d.m ? `: its own, drawn from its width (Γ ${fmtNum(d.w, 3)} MeV) about the table's ${fmtNum(d.m, 5)}` : ''}`]);
+    kv.push(['Charge', d.q > 0 ? '+' + d.q : d.q < 0 ? '−' + -d.q : '0'], ['Rest mass', fmtMassMeV(m, 4)]);
+    if (m < 2000) kv.push(['In electron masses', fmtNum(m / 0.51099895, 4)]); // (1.39.2: its own row, and only where it helps)
+    if (d.res && m !== d.m) kv.push(['Table mass', fmtMassMeV(d.m, 5)], ['Width Γ', fmtMassMeV(d.w, 3).replace('/c²', '')]); // ("Rest mass": this one's, drawn from its width)
     if (XP_QUARKS[o.sp]) kv.push(['Made of', XP_QUARKS[o.sp]]);
     if (d.hyp) kv.push(['Made of', `${nucSym(d.Z, d.N)} (${d.Z} p, ${d.N} n) and a Λ (u d s)`], ['Λ bound by', fmtE(d.BL * MEV)]);
     kv.push(...gyroRows(d.q, m / PHYS.AMU_MEV, o.gam, o.v, o.x, o.y, null));
-    if (d.hypo) kv.push(['Status', 'hypothetical: not found yet']); // (1.39, item 103)
+    if (d.hypo) kv.push(['Status', 'hypothetical']); // (1.39, item 103)
     if (o.sp === 'wimp') kv.push(['Cross section', `${fmtSci(DKM.sigN, 2)} cm² a nucleon (LZ 2024 limit), × A² × (μ_A/μ_n)² a nucleus`], ['Shown', W.ultra ? 'at that rate' : '10²³ times as often']);
     if (o.sp === 'axion') kv.push(['Coupling to light', `g = ${fmtSci(DKM.gAg, 2)} GeV⁻¹ (CAST 2024 limit)${W.ultra ? '' : ', shown 10¹⁷ times larger'}`], ['Chance to be a photon so far', `${fmtNum(100 * Math.sin(o.axA || 0) ** 2, 3)} %`]);
-    if (o.sp === 'slet') { const A = o.A || d.B; kv.push(['Baryon number A', String(A)], ['Charge', `+${o.q}`], ['Energy a baryon', `${fmtNum(sletMass(A) / A, 4)} MeV (a neutron: 939.6)`]); }
+    if (o.sp === 'slet') { const A = o.A || d.B; kv.push(['Baryon number A', String(A)], ['Energy a baryon', `${fmtNum(sletMass(A) / A, 4)} MeV (n: 939.6)`]); }
     if (o.sp === 'mono') kv.push(['Magnetic charge', '68.5 e (Dirac’s: e/2α)'], ['Ionizes as a charge of', fmtNum(DKM.monoG * o.v / PHYS.C, 3) + ' e (68.5 β)']);
     if (o.sp === 'LL6He') kv.push(['Both Λ bound by', fmtE(d.BLL * MEV)]);
     kv.push(['Kinetic energy', fmtE(o.KE)], ['Total energy', fmtE(o.KE + m * 1e6)], ['Speed', fmtSpeed(o.v)], ['Lorentz factor γ', fmtNum(o.gam, 4)],
-      ['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)],
-      d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', (d.ew ? ewDecList(o.sp) : d.dec.map(([b, ps]) => [b, ps.map(t => labelOf(item(t))).join(' ')])).map(([b, dt]) => `${dt} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
+      ...(isFinite(d.tau) ? [['Mean life at rest', fmtTime(d.tau)], ['Mean life moving (γτ)', fmtTime(life)], ['Mean distance before decaying', fmtLen(path)]] : [['Mean life', 'stable']]), // (stable: no ∞, no "— km", 1.39.2)
+      !d.dec.length && !d.hyp ? null : d.hyp ? ['Decays by', `Λ → p π⁻ or n π⁰ inside (mesonic, ${Math.round(100 * hypMesonic(d.Z + d.N + 1))}%), or Λp → np and Λn → nn (non-mesonic: 176 MeV to the two nucleons, which usually break the nucleus)`] : ['Decays to', (d.ew ? ewDecList(o.sp) : d.dec.map(([b, ps]) => [b, ps.map(t => labelOf(item(t))).join(' ')])).map(([b, dt]) => `${dt} (${b >= 0.9995 ? '100' : b >= 0.01 ? (100 * b).toFixed(b > 0.995 ? 2 : 1) : (100 * b).toPrecision(2)}%)`).join('; ')]);
     about = d.atom ? `An atom with a muon in place of its electron. The muon is 207 times heavier, so its orbit is 207 times smaller (about 0.03 nm → 0.00025 nm): the atom is neutral and tiny, and slips between molecules. Its muon moves to a heavier hydrogen isotope it meets; a muonic tritium atom catches a deuteron into the molecule dμt, where the two nuclei sit so close that they fuse within a picosecond. It bounces off the nuclei it passes (elastic scattering, measured: about 10⁻²⁰ cm² for μp + p), which slows it to the gas's temperature; the scattering size is enlarged here, as for every nuclear process, and it bounces off any nucleus (1.28.1), except in the ultra-realistic mode, where it is hydrogen's measured size off hydrogen only. Bound by ${fmtE(d.Eb * 1e6)}.`
       : d.stuck ? 'The muon has stuck to the helium nucleus made in a catalysed fusion: bound to a charge of +2, it can no longer catalyse; it will decay where it is.'
       : XP_ABOUT[o.sp] || XP_ABOUT[d.hyp ? 'hy' : d.ew ? o.sp[0] : ['mu', 'pi', 'K', 'tau', 'Lam', 'Sig', 'Xi', 'Omg', 'eta'].find(k => o.sp.startsWith(k))] || ''; // (none for the others: they had the η's words, "a neutral meson", for a B⁺ or a Λc, until 1.28.1; the info box below says what each is) // (d.ew: W and Z, 1.27)
@@ -2124,7 +2126,7 @@ function selXHTML() {
     const sp = o.spin && RP.mu ? muSpinInfo(o) : null;
     if (sp) kv.push(...muSpinRows(sp));
     if (d.tau < 1e-15) about += ` This one lives so briefly that it decays on average ${fmtLen(path)} from where it was made${path < 1e-14 ? ', less than the width of a nucleus' : path < 1e-10 ? ', less than the width of an atom' : ''}.`; // (from its own distance: a still pentaquark said "a few nanometres" beside 0.000075 fm, bug B18, 1.30)
-    else if (path > 1e-6) about += ` Moving this fast it would cross ${fmtLen(path)} on average before decaying, far more than this chamber, so it leaves it — unless decay is sped up (Lab → Decay speed).`;
+    else if (path > 1e-6 && isFinite(path)) about += ` Moving this fast it would cross ${fmtLen(path)} on average before decaying, far more than this chamber, so it leaves it — unless decay is sped up (Lab → Decay speed).`;
     status = live ? 'In flight' : o.fate ? o.fate[0].toUpperCase() + o.fate.slice(1) : 'Gone';
   } else {
     const E = o.E, nu = X.kind === 'ray' && o.nu;
@@ -2149,12 +2151,25 @@ function selXHTML() {
     status = live ? 'In flight' : X.kind === 'flight' || o.hitP || o.landed ? 'Arrived' : nu ? 'Gone: it left the chamber' : 'Gone: it left the chamber, or was absorbed';
   }
   return `<div class="ins-head"><div class="tilebox" style="border-color:${col}"><span class="s">${esc(sym)}</span></div><div><b>${esc(title)}</b><div class="note">${esc(status)}</div></div></div>
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${about ? `<p class="note">${esc(about)}</p>` : ''}${infoPHTML(X.kind === 'exo' ? infoKeyX(o.sp) : X.kind === 'ray' && o.nu ? 'nu' : X.o && X.o.E >= 1.24e5 ? 'gamma' : 'photon')}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}${X.kind === 'exo' && live && !o.xb ? '<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="delx">Delete</button></div>' : ''}`; // (Delete, as an atom's card has: muonic hydrogen and the other particles in flight had none, 1.26)
+    ${kvHTML(kv)}${about ? `<p class="note">${esc(about)}</p>` : ''}${infoPHTML(X.kind === 'exo' ? infoKeyX(o.sp) : X.kind === 'ray' && o.nu ? 'nu' : X.o && X.o.E >= 1.24e5 ? 'gamma' : 'photon')}${X.kind === 'exo' ? quarkSecHTML(qSubject(null, X)) : ''}${X.kind === 'exo' && live && !o.xb ? '<div class="row" style="justify-content:flex-start"><button class="btn small" data-act="delx">Delete</button></div>' : ''}`; // (Delete, as an atom's card has: muonic hydrogen and the other particles in flight had none, 1.26)
 }
 /* Pinned Inspect cards (1.32 item 82): the pin on a card keeps that particle's card (its head and numbers, updated
    live) above the next one, up to three, each closed with its own ×, so two particles can be compared. */
 const PINS = [], PIN_MAX = 3;
 function pinToggle(p) { const i = PINS.indexOf(p); if (i >= 0) PINS.splice(i, 1); else { PINS.push(p); if (PINS.length > PIN_MAX) PINS.shift(); } }
+/* (1.39.2; the owner, a screenshot of the Z′'s card: "some of these panels on certain particles look very messy, can you
+   clean them up a bit") A card's rows: a short value on the right, as before; a long one (over 26 characters) on its
+   own full-width line under its name, in the reading font, left-aligned; a list ("a; b; c": decays, isotopes) one item
+   a line, its share on the right. */
+function kvHTML(kv) {
+  return `<dl class="kv">${kv.filter(Boolean).map(([k, v]) => { // (a null row: none, as a stable particle's decays)
+    const t = String(v);
+    if (t.length <= 26) return `<dt>${esc(k)}</dt><dd>${esc(t)}</dd>`;
+    const parts = t.split('; ');
+    if (parts.length > 2) return `<dt class="w">${esc(k)}</dt><dd class="w"><ul class="kvl">${parts.map(x => { const m = /^(.*?)\s*\(([^()]*%)\)$/.exec(x); return m ? `<li><span>${esc(m[1])}</span><b>${esc(m[2])}</b></li>` : `<li><span>${esc(x)}</span></li>`; }).join('')}</ul></dd>`;
+    return `<dt class="w">${esc(k)}</dt><dd class="w">${esc(t)}</dd>`;
+  }).join('')}</dl>`;
+}
 function renderInspect() { renderInspect1(); pinsDraw(); fitTiles($('tp-inspect')); }
 /* (1.39.1, the owner's screenshot: "monopole" ran far out of the card's symbol tile) A symbol too wide for its tile is
    drawn smaller, to fit; the size is measured once for each symbol and kept. */
@@ -2290,7 +2305,7 @@ function inspectBuild(box, p, pinned) {
       ${RP.nuc && !p.mu && (nucSpin(p.Z, p.N) || {}).mu ? `<button class="btn small" data-act="nmr" title="A 90° pulse on every ${esc(nucSym(p.Z, p.N))} in the box: their spins tip over and precess in the field, and their signal's frequency is measured">NMR pulse</button>` : ''}
       <button class="btn small" data-act="pin" aria-pressed="${PINS.includes(p)}" title="Keep this card above the next one you inspect (up to three)">${PINS.includes(p) ? 'Pinned' : 'Pin'}</button>
       <button class="btn small" data-act="del">Delete</button></div>` : `<div class="row" style="justify-content:flex-start;gap:8px"><button class="btn small" data-act="pin" aria-pressed="${PINS.includes(p)}" title="Keep this card above the next one you inspect (up to three)">${PINS.includes(p) ? 'Pinned' : 'Pin'}</button><button class="btn small" data-act="del">Delete</button></div>`;
-  if (pinned) { box.innerHTML = `${head}<dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`; return true; }
+  if (pinned) { box.innerHTML = `${head}${kvHTML(kv)}`; return true; }
   const od = box.querySelector('#insOrbs'); if (od) UI.orbOpen = od.open;
   const sd = box.querySelector('#insSolver'); if (sd) UI.solverOpen = sd.open;
   if (W.d3) { const kms = 1e-13 / PHYS.TU_S, f = (a, b, c, k, d) => [a, b, c].map(v => (v * k).toFixed(d)).join(', '); kv.push(['Position (x, y, z)', f(p.x, p.y, p.z, 1, 2) + ' Å'], ['Velocity (vx, vy, vz)', f(p.vx, p.vy, p.vz, kms, 2) + ' km/s']); } // (3-D: where it is in the box, and its motion in depth too)
@@ -2298,7 +2313,7 @@ function inspectBuild(box, p, pinned) {
     (p.k === NUC && p.Z + p.N > 0 && p.nuc && !p.nuc.stable && !p.nuc.unbound ? chainSectionHTML(p.Z, p.N, p.anti) : '');
   box.innerHTML = `${head}<div>${pills}</div>
     ${p.k === NUC && p.Z > 0 ? `<canvas class="bohr" id="insBohr" aria-label="${R.view.bohr === 'orb' && p.ne > 0 ? 'Electron density' : 'Shell diagram'}"></canvas>` : ''}
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${orbs}${bareNote}${extra}${(() => { const k = infoKeyP(p); return k ? infoPHTML(k) : p.k === NUC && p.Z > 0 && !p.mu ? infoElHTML(p.Z, p.anti) : ''; })()}${quarkSecHTML(qSubject(p))}${actions}`; // (info: the particle's, or the element's for an atom, 1.28.1)
+    ${kvHTML(kv)}${orbs}${bareNote}${extra}${(() => { const k = infoKeyP(p); return k ? infoPHTML(k) : p.k === NUC && p.Z > 0 && !p.mu ? infoElHTML(p.Z, p.anti) : ''; })()}${quarkSecHTML(qSubject(p))}${actions}`; // (info: the particle's, or the element's for an atom, 1.28.1)
   for (const cv of box.querySelectorAll('canvas.orbcv')) drawOrbThumb(cv, p, +cv.dataset.i);
   const nd = box.querySelector('#insOrbs'); if (nd) nd.addEventListener('toggle', () => { UI.orbOpen = nd.open; });
   const cd = box.querySelector('#insChain'); if (cd) cd.addEventListener('toggle', () => { UI.chainOpen = cd.open; });
@@ -4540,7 +4555,7 @@ function fmtBeta(b) {
   return Math.min(1 - 1e-9, b).toFixed(Math.min(7, Math.ceil(-Math.log10(1 - b)) + 1)) + ' c';
 }
 const twoFig = (v) => String(Number(v.toPrecision(2))); // (two figures, never as 1.5e+2, 1.26)
-const fmtLen = (m) => (m >= 1000 ? fmtNum(m / 1000, 2) + ' km' : m >= 1 ? twoFig(m) + ' m' : m >= 0.01 ? twoFig(m * 100) + ' cm' : m >= 1e-3 ? twoFig(m * 1e3) + ' mm' : m >= 1e-6 ? twoFig(m * 1e6) + ' µm' : m >= 1e-9 ? twoFig(m * 1e9) + ' nm' : m >= 1e-12 ? twoFig(m * 1e12) + ' pm' : twoFig(m * 1e15) + ' fm'); // (a mean distance of 150 nm read "1.5e+2 nm", a ρ's 1.3 fm "0.0000013 nm", 1.26)
+const fmtLen = (m) => (m >= 1000 ? fmtNum(m / 1000, 2) + ' km' : m >= 1 ? twoFig(m) + ' m' : m >= 0.01 ? twoFig(m * 100) + ' cm' : m >= 1e-3 ? twoFig(m * 1e3) + ' mm' : m >= 1e-6 ? twoFig(m * 1e6) + ' µm' : m >= 1e-9 ? twoFig(m * 1e9) + ' nm' : m >= 1e-12 ? twoFig(m * 1e12) + ' pm' : m >= 1e-18 ? twoFig(m * 1e15) + ' fm' : fmtSci(m * 1e15, 2) + ' fm'); // (below 0.001 fm, a power of ten: a Z′'s read "5.7e-7 fm", 1.39.2) // (a mean distance of 150 nm read "1.5e+2 nm", a ρ's 1.3 fm "0.0000013 nm", 1.26)
 /* Real-world scale: the same beams in real magnets, and this machine's fields. */
 function scaleNote(C) {
   const A = beamInfo(C.a), B = beamInfo(C.b), R = C.kind === 'ring' && C.rings && C.rings.length ? C.rings : null; // (a ring's own top energy: electrons are held back by radiation)

@@ -455,6 +455,11 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 13px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 12.5px; overflow-wrap: anywhere; }
+.kv dt.w { grid-column: 1 / -1; margin-bottom: -3px; } /* (1.39.2: a long value under its name, kvHTML) */
+.kv dd.w { grid-column: 1 / -1; text-align: left; font-family: var(--font-ui); font-size: 12.5px; line-height: 1.4; overflow-wrap: normal; padding-left: 8px; }
+.kvl { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.kvl li { display: flex; justify-content: space-between; gap: 10px; }
+.kvl li b { font-family: var(--font-data); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
 canvas.bohr { width: 100%; height: 180px; display: block; border-radius: 10px; background: var(--ch-bg); }
 details.orbs summary { cursor: pointer; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 750; }
 details.orbs summary span { text-transform: none; letter-spacing: 0; font-weight: 500; margin-left: 4px; }

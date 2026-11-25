@@ -499,7 +499,7 @@ PARTS.mass = async (page, check) => { // (1.39.1 item 106: masses in u, MeV/c²,
     const a = addAtom('C', 0, 0), o = addExo('Jpsi', 3, 0, 0, 1, 0); o.wait = true;
     for (const v of ['auto', 'u', 'MeV']) { document.querySelector(`#segMUnit [data-v="${v}"]`).click();
       R.selX = null; R.sel = a; renderInspect(); const t1 = ($('tp-inspect').textContent.match(/Mass\s*([\d.,]+ (?:u|[MGT]eV\/c²))/) || [])[1];
-      R.sel = null; R.selX = { kind: 'exo', o, t0: W.rt }; renderInspect(); const t2 = ($('tp-inspect').textContent.match(/Rest mass\s*([^(]*)/) || [])[1];
+      R.sel = null; R.selX = { kind: 'exo', o, t0: W.rt }; renderInspect(); const t2 = ($('tp-inspect').textContent.match(/Rest mass\s*([\d.,]+ (?:u|[MGT]eV\/c²))/) || [])[1];
       out[v] = [String(t1).trim(), String(t2).trim()]; }
     document.querySelector('#segMUnit [data-v="auto"]').click(); return out; });
   const ok = /^12 u/.test(r.auto[0]) && /3,097 MeV\/c²/.test(r.auto[1]) && /^12 u/.test(r.u[0]) && /3\.32\d* u/.test(r.u[1]) && /11\.17\d* GeV\/c²/.test(r.MeV[0]) && /3,097 MeV\/c²/.test(r.MeV[1]);
@@ -552,6 +552,22 @@ PARTS.anim = async (page, check) => { // (1.39.2: the new navigation animated)
   const ok = o[2] === 'moPop' && o[4] && g[3] === 'pmFwd' && b[3] === 'pmBack' && r.settled === '1' && (r.chevClosed === 'none' || /matrix\(1, 0, 0, 1/.test(r.chevClosed));
   check(ok, `1.39.2 the particle menus move: Hadrons drops in (${o[2]}), its ▾ turns over while open and back when closed, a group slides in from the right (${g[3]}), ‹ back slides the groups in from the left (${b[3]}), all settled after 0.3 s`, `1.39.2 anim: ${JSON.stringify(r)}`);
   if (own) { if (own.errors.length) check(false, '', '1.39.2 anim errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+};
+PARTS.cards = async (page, check) => { // (1.39.2: "some of these panels on certain particles look very messy")
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 1400 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => { loadPreset('empty'); setRunning(false); showTab('inspect'); const out = {};
+    for (const sp of ['Zp', 'slet', 'Jpsi', 'W+', 'Rg', 'BH', 'wimp', 'Pc4312']) {
+      W.exo.length = 0; const o = fireSpec({ kind: 'exo', sp }, 0, 0, 1, 0, 1e6, false); o.wait = true; R.sel = null; R.selX = { kind: 'exo', o, t0: W.rt }; renderInspect(); await new Promise(res => setTimeout(res, 40));
+      const box = $('tp-inspect'), dds = [...box.querySelectorAll('.kv dd')];
+      out[sp] = { tall: dds.filter(d => d.getBoundingClientRect().height > 40 && !d.classList.contains('w')).map(d => d.textContent.slice(0, 30)),
+        odd: /∞|— km|electron masses\)|drawn from its width/.test(box.textContent), items: box.querySelectorAll('.kvl li').length, note: (box.textContent.match(/A charmonium[^.]*/) || [''])[0] };
+    }
+    return out; });
+  const tall = Object.entries(r).filter(([, v]) => v.tall.length).map(([k, v]) => k + ': ' + v.tall.join('|')), odd = Object.entries(r).filter(([, v]) => v.odd).map(([k]) => k);
+  check(!tall.length && !odd.length && r.Zp.items === 9 && r.Jpsi.items === 9 && r.slet.items === 0 && /charmonium/.test(r.Jpsi.note),
+    `1.39.2 the cards are tidy: no short-row value wraps (Z′, strangelet, J/ψ, W⁺, R-hadron, black hole, WIMP, Pc⁺), decays one a line with their shares (Z′ 9, J/ψ 9), a stable particle says "stable" (no ∞ or "— km"), a resonance's table mass and width get their own rows; the J/ψ's close-up says "${r.Jpsi.note}"`,
+    `1.39.2 cards: tall ${tall} odd ${odd} ${JSON.stringify(r)}`);
+  if (own) { if (own.errors.length) check(false, '', '1.39.2 cards errors: ' + own.errors.join(' | ')); await own.browser.close(); }
 };
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {

@@ -2040,6 +2040,17 @@ in from the right and "‹ back" slides the groups in from the left (0.16 s, `pm
 button's ▾ turns over while its menu is open (a span `.chev`; the turn itself stays with motion off, without the
 movement). Test: f_139.js anim.
 
+**Tidier Inspect cards** (the owner, 2026-11-24, a screenshot of the Z′'s card: "some of these panels on certain particles
+look very messy, can you clean them up a bit"). The value column is narrow and monospaced, so long values wrapped into
+tall right-aligned blocks. Now (`kvHTML`, all three card kinds and pinned cards): a value over 26 characters goes on
+its own full-width line under its name, in the reading font; a list ("a (x%); b (y%)": decays) is one item a line with
+its share on the right. The rest mass is one value; "in electron masses" its own row, only below 2 GeV; a resonance's
+table mass and width their own rows (the old one-line "…: its own, drawn from its width (Γ …) about the table's 6.0000
+million"). A stable particle's card says "Mean life: stable" (it showed ∞, "— km", an empty "Decays to" and "would cross
+— km … unless decay is sped up"). Distances under 0.001 fm read as a power of ten (5.7×10⁻⁷ fm, not "5.7e-7 fm"). The
+strangelet's card lost a second "Charge" row; "Status: hypothetical". The J/ψ's close-up called it "a D meson": c c̄ is
+now charmonium (b b̄ bottomonium). Test: f_139.js cards.
+
 ## 1.39.1 (released 2026-11-24): the benchmark's per-thread line (the owner, 2026-11-22, "build it")
 After the GPU was shelved the owner ran the Settings benchmark on his PC (1.39.0 desktop, 16 threads, WebAssembly
 kernel). 20,000 waters: **0.56 ms a step**, the goal met by the benchmark's sum (37.5 steps × 0.56 + 0.9 ms drawing =
