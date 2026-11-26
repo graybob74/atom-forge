@@ -789,6 +789,25 @@ PARTS.fey = async (page, check) => { // (1.39.3 item 117: Feynman diagrams of ev
   check(!bad.length && rec > 5 && drawn === rec && pOk, `1.39.3 Feynman diagrams: ${Object.keys(want).length} processes get their force, carrier and shape (β decay through a W⁻, J/ψ → e⁺e⁻ through a photon, π⁰ → γγ a loop …); the Z factory recorded ${rec} events, all drawable; the Data tab steps through them`,
     `1.39.3 fey: ${bad.join(' | ')} rec ${rec} drawn ${drawn} page ${JSON.stringify(pg)}`);
 };
+PARTS.defon = async (page, check) => { // (1.39.3 item 120: the realistic switches that cost nothing on from the start, listed after those off)
+  const X = load('all', { seed: 1 }), keys = ['rpPs', 'rpMu', 'rpExo', 'rpRes', 'rpNuc', 'rpExm', 'rpAq', 'xbi', 'xrad'];
+  const node = keys.every(k => X.SET_DEF[k] === true && X.expFree(k)) && !X.SET_DEF.rpRay && !X.SET_DEF.rpPwave && !X.SET_DEF.rpPol && !X.SET_DEF.ultra && X.expSummary() === 'Experimental: all normal';
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async (keys) => {
+    const w = (ms) => new Promise(res => setTimeout(res, ms)), o = {};
+    o.on = keys.map(k => SET[k]).every(Boolean) && RP.ps && RP.mu && RP.exo && RP.res && RP.nuc && RP.exm && RP.aq && XF.bi && XF.rad;
+    openSettings('exp'); await w(80);
+    const order = (sel) => [...document.querySelectorAll(sel)].map(e => { const k = EXP_SET[e.id] || e.id.slice(3, 4).toLowerCase() + e.id.slice(4); return SET_DEF[k] === true ? 1 : 0; });
+    o.rp = order('#setModal .rpl input[type=checkbox]').join(''); o.xf = order('#setModal .swl input[type=checkbox]').join('');
+    $('setRpPs').click(); o.sum = expSummary(); o.kept = JSON.parse(store('settings')).rpPs; settingsLoad(); o.after = SET.rpPs; $('setRpPs').click(); o.back = SET.rpPs && expSummary() === 'Experimental: all normal';
+    hideModal('setModal'); return o;
+  }, keys);
+  if (own) { if (own.errors.length) check(false, '', '1.39.3 defon page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+  const sorted = (t) => /^0*1*$/.test(t) && t.includes('1');
+  check(node && r.on && sorted(r.rp) && sorted(r.xf) && /no positronium/.test(r.sum) && r.kept === false && r.after === false && r.back,
+    `1.39.3 positronium, muonium, exotic atoms, resonance widths, nuclear spin, unstable particles meeting, hydrated electrons, fields of and radiation from moving charges on from the start, the summary "all normal" with them; turned off it stays off; in Settings those off from the start come first (${r.rp}, ${r.xf})`,
+    `1.39.3 defon: node ${node} ${JSON.stringify(r)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

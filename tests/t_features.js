@@ -484,7 +484,7 @@ const { openPage } = require('./browser');
     '0.61: ' + JSON.stringify(r24));
   // 0.62: neutrons meet each other and a nucleus moving into them; hadrons meet nuclei in flight; stopped π⁻ and Σ⁻ are caught
   const r25 = await page.evaluate(() => {
-    const out = { nn: {}, bad: [], worst: 0, fates: {} };
+    const out = { nn: {}, bad: [], worst: 0, fates: {} }, rpWas = [RP.exo, RP.nuc]; RP.exo = false; RP.nuc = false; // (the capture of a stopped π⁻ without exotic atoms; on from the start since 1.39.3)
     for (const [KE, tz, tn, who] of [[0.0253, 1, 0, 'T'], [0.0253, 0, 1, 'n'], [2e6, 0, 1, 'T'], [2e6, 6, 6, 'T']]) {
       let hits = 0;
       for (let t = 0; t < 12; t++) {
@@ -518,7 +518,7 @@ const { openPage } = require('./browser');
     out.brems = rad / (300000 * 5000) / (74 / 800); W.rays.length = 0;
     clearWorld(); const pb = addAtom('Pb', 0, 0, { A: 208 }); forcesNoEvents(); const e0 = E(); out.gdr = photoNuclear(pb, 13.5e6, 1, 0) ? W.log[W.log.length - 1].text : 'none'; out.gdrE = Math.abs(E() - e0 - 13.5e6);
     let mu = 0; for (let t = 0; t < 20; t++) { clearWorld(); W.decayOn = false; addAtom('Ar', 0, 0); forcesNoEvents(); const m = addExo('mu+', 0.5, 0, 500, 1, 0); for (let s = 0; s < 50 && !m.dead; s++) { W.dt = chooseDt(); step(W.dt); } if (/Muonium/.test(m.fate || '')) mu++; }
-    out.mu = mu;
+    out.mu = mu; [RP.exo, RP.nuc] = rpWas;
     return out;
   });
   const nnOk = Object.values(r25.nn).every(v => v === 12), fOk = ['π⁺ + ¹²C', 'π⁻ + ¹²C', 'K⁻ + ¹²C', 'K⁺ + ¹²C', 'Λ + ¹²C', 'Λ̄ + ¹²C', 'π⁻ caught by ¹²C', 'Σ⁻ caught by ¹²C'].every(k => Object.keys(r25.fates).some(f => f.startsWith(k.split(' + ')[0]) && f.includes(k.includes('caught') ? 'caught' : '+')));

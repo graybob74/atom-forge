@@ -229,7 +229,7 @@ PARTS.layout = async (page, check) => {
     return o;
   });
   const i = r.ids.indexOf('setRpExo'), ok = i >= 0 && r.ids[i + 1] === 'setRpPs' && r.ids[i + 2] === 'setRpMu' && r.tags.every(Boolean) && r.h[i + 1] < 34 && r.h[i + 2] < 34
-    && /^Positronium \| A slow positron/.test(r.pane) && /^Muonium as hydrogen \| Muonium/.test(r.pane2) && r.ps.join() === 'true,true,true,false,false' && r.mu.join() === 'true,true,false,false' && r.exp;
+    && /^Positronium \| A slow positron/.test(r.pane) && /^Muonium as hydrogen \| Muonium/.test(r.pane2) && r.ps.join() === 'false,false,false,true,true' && r.mu.join() === 'false,false,true,true' /* (on from the start since 1.39.3: the first press turns them off) */ && r.exp;
   check(ok, `1.27 Settings: Realistic particles has Positronium and Muonium as hydrogen after Exotic atoms (${r.h.slice(i + 1, i + 3).join('/')} px high), with cost tags and side-pane texts; they set RP.ps and RP.mu, and are off at start`, 'rp2 layout: ' + JSON.stringify(r));
 };
 PARTS.layout.page = true;

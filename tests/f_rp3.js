@@ -295,7 +295,7 @@ PARTS.layout = async (page, check) => {
     hideModal('setModal'); loadPreset('d3empty'); openSettings('exp'); setPrevShow('setRpCpm', null); o.pane3 = $('setPrevD').textContent; o.cost3 = (COSTS3.setRpCpm() || {}).on[0]; hideModal('setModal'); loadPreset('empty');
     return o;
   });
-  const ok = r.i > r.ids.indexOf('setRpMu') && r.ids.indexOf('setRpMu') >= 0 && r.tag && r.real && r.h < 34 && /^Charged particles in matter \| A fast charged particle crossing matter/.test(r.pane)
+  const ok = r.i >= 0 && r.i < r.ids.indexOf('setRpMu') /* (1.39.3: off from the start, so before Muonium) */ && r.tag && r.real && r.h < 34 && /^Charged particles in matter \| A fast charged particle crossing matter/.test(r.pane)
     && /In 3-D the same in all three directions/.test(r.pane3) && r.cost3 === '×1–1.5' && r.on.join() === 'true,true,true,false,false' && r.exp;
   check(ok, `1.27 Settings: Realistic particles has Charged particles in matter after Muonium as hydrogen (${r.h} px high), with its cost tag, "realistic when on" and side-pane texts flat and 3-D; it sets RP.cpm, is saved and is off at start`, 'rp3 layout: ' + JSON.stringify(Object.assign({}, r, { pane3: r.pane3.slice(0, 60) })));
 };

@@ -75,16 +75,16 @@ PARTS.settings = async (page, check, say) => {
   const r = await page.evaluate(async () => {
     const o = { start: [SET.rpExm, RP.exm].join() };
     openSettings('exp'); await new Promise(res => setTimeout(res, 60));
-    const ids = [...document.querySelectorAll('#setModal .rpl input')].map(e => e.id); o.after = ids.indexOf('setRpExm') === ids.indexOf('setRpRay') + 1;
+    const ids = [...document.querySelectorAll('#setModal .rpl input')].map(e => e.id); o.after = ids.indexOf('setRpExm') === ids.indexOf('setRpNuc') + 1; // (1.39.3: the switches on from the start after those off)
     const line = $('setRpExm').closest('.rpl'); o.tag = !!line.querySelector('.cost-k'); o.h = Math.round(line.getBoundingClientRect().height);
     setPrevShow('setRpExm', null); o.pane = $('setPrevT').textContent; o.desc = !!SDESC.setRpExm && !!SDESC3.setRpExm;
-    $('setRpExm').click(); o.on = [SET.rpExm, RP.exm].join(); o.saved = String(JSON.parse(store('settings')).rpExm); o.exp = SET_EXP.includes('rpExm') && String(expSummary()).includes('unstable particles meeting');
+    $('setRpExm').click(); o.on = [SET.rpExm, RP.exm].join(); o.saved = String(JSON.parse(store('settings')).rpExm); o.exp = SET_EXP.includes('rpExm') && String(expSummary()).includes('no unstable particles meeting');
     $('setRpExm').click(); o.off = [SET.rpExm, RP.exm].join();
     hideModal('setModal'); return o;
   });
   say('  1.27 (24) settings: ' + JSON.stringify(r));
-  check(r.start === 'false,false' && r.after && r.tag && r.h < 34 && r.pane === 'Unstable particles meet each other' && r.desc && r.on === 'true,true' && r.saved === 'true' && r.exp && r.off === 'false,false',
-    '1.27 (24): Settings → Experimental → Realistic particles → Unstable particles meet each other: after Rayleigh scattering, off at start, its tag, the side pane in both modes, saved, named in the Speed test\'s line',
+  check(r.start === 'true,true' && r.after && r.tag && r.h < 34 && r.pane === 'Unstable particles meet each other' && r.desc && r.on === 'false,false' && r.saved === 'false' && r.exp && r.off === 'true,true',
+    '1.27 (24): Settings → Experimental → Realistic particles → Unstable particles meet each other: after Nuclear spin, on at start (since 1.39.3), its tag, the side pane in both modes, saved, named in the Speed test\'s line',
     '1.27 (24) settings: ' + JSON.stringify(r));
 };
 PARTS.settings.page = true;

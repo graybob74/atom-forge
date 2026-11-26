@@ -2110,6 +2110,20 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   products, a blob ("many particles and forces at once, which no single diagram shows"). Drawn at the level of the
   particles, not their quarks, and said so under each. Check: f_139 `fey` (16 processes, the Z factory's 40 events
   all drawable, the page's arrows).
+- **120, realistic switches on from the start** (the owner, 2026-11-25: "make every settings switch that doesnt impact
+  performance, is realistic and doesnt change the game too much on by default"; "build it"; and "order it so the ones
+  that are off by default come first. Dont label that"). `SET_ON` (ui.js): positronium, muonium as hydrogen, exotic
+  atoms, resonance widths and heavy flavour, nuclear spin and γ lines, unstable particles meeting, hydrated electrons,
+  magnetic fields of moving charges, radiation from accelerating charges: each measured ×1 in both modes and tagged
+  realistic. Their defaults true; kept as the player leaves them across starts (`expFree`: the two forces were reset at
+  every start before); the Experimental summary lists them when they are off ("no positronium …"), so the defaults
+  still read "all normal"; their side-pane texts no longer say "off again each time the game starts". Left off:
+  Rayleigh scattering and photons as waves (change more), photon polarization (×1–2 in 3-D), detailed nuclear
+  collisions, large-ring resonance, the ultra-realistic mode, the costly forces. In Experimental → More forces and
+  Realistic particles the lines are reordered: those off from the start first, in their old order, then those on
+  (body.html; no label). The Node harness does not run the page's `applySettings`, so its RP and XF stay off and the
+  fingerprints are unchanged; the page's checks of these switches (f_rp1–3 layout, f_127x (24), f_feat1 page) now
+  expect them on at the start and in their new places. Check: f_139 `defon`.
 - Tests (2026-11-25; this machine has 2 cores, so `tools/runtests.sh` would take hours: t_features and every file it
   loads were run one at a time instead, and the suites these items touch). Pass: f_139 (all 30 parts), f_127h, f_127x,
   t_energy, t_fuzz, f_bug126, f_ew, f_rp2, f_rp3, f_127w, f_1281, f_1283, f_125s (its 3-D labels check missed once
@@ -4996,7 +5010,8 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
    spreads from small openings everywhere) changing more (proposed left off unless the owner wants them); left off:
    photon polarization (×1–2 in 3-D), detailed nuclear collisions (×1–1.05), large-ring resonance (pauses),
    ultra-realistic mode and the costly Experimental forces. Those turned on would keep the user's choice instead of
-   resetting at each start; the fingerprint suites would be re-pinned. Waiting for "build it".
+   resetting at each start; the fingerprint suites would be re-pinned. Built in 1.39.3 (the fingerprints needed no
+   change: the Node harness leaves the page's settings unapplied).
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,

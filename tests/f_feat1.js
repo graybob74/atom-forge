@@ -192,9 +192,9 @@ PARTS.page = async (page, check) => {
     // 32
     loadPreset('empty'); setRunning(false);
     o.menu = PCATS.some(([n, l]) => n === 'Exotic' && l.some(s => s.sp === 'pPs') && l.some(s => s.sp === 'oPs'));
-    UI.spec = { kind: 'exo', sp: 'oPs' }; setTool('place'); o.help = $('toolopts').textContent;
+    RP.ps = false; SET.rpPs = false; /* (on from the start since 1.39.3: off for this part) */ UI.spec = { kind: 'exo', sp: 'oPs' }; setTool('place'); o.help = $('toolopts').textContent;
     placeFly({ kind: 'exo', sp: 'oPs' }, 0, 0, 1); o.offMade = W.exo.filter(q => !q.dead && XP[q.sp].ps).length; o.offLog = W.log.length ? W.log[W.log.length - 1].text : '';
-    RP.ps = true; placeFly({ kind: 'exo', sp: 'pPs' }, 0, 0, 1); placeFly({ kind: 'exo', sp: 'oPs' }, 2, 0, 1); o.onMade = W.exo.filter(q => !q.dead && XP[q.sp].ps).map(q => q.sp).join(); RP.ps = !!SET.rpPs;
+    RP.ps = true; placeFly({ kind: 'exo', sp: 'pPs' }, 0, 0, 1); placeFly({ kind: 'exo', sp: 'oPs' }, 2, 0, 1); o.onMade = W.exo.filter(q => !q.dead && XP[q.sp].ps).map(q => q.sp).join(); SET.rpPs = SET_DEF.rpPs; RP.ps = !!SET.rpPs;
     setTool('inspect');
     return o;
   });
