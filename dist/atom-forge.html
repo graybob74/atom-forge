@@ -29163,12 +29163,12 @@ Object.assign(XP, {
      placing makes its antiparticle too), and the pair decays together (bsmDecay 'lq'): its lone quark could not become
      hadrons with the charge whole. A leptoquark carries a third of a baryon number (the quark it turns into) and a lepton
      number: B ⅓ (1.39.3: it had 0, so the single one's decay made baryon number). */
-  LQ: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, pairMade: true, bsm: 'lq', dec: [[1, ['e-']]] },
+  LQ: { lab: 'LQ⁻¹ᐟ³', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, pairMade: true, bsm: 'lq', dec: [[1, ['e-']]] },
   /* (1.39.3 item 111) A single leptoquark, as the LHC makes one: u + g → LQ + e⁺. The struck proton's other quarks (a u d
      diquark, 580 MeV: its constituent mass) fly on, colour-joined to the leptoquark; when it decays (e⁻ u), that u and the
      diquark become hadrons together (charge +1, baryon number 1: whole). qRem: the diquark, a third of a charge and two of
      a baryon, never free: it lives only with its leptoquark (1.65×10⁻²⁴ s). */
-  LQs: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, singleMade: true, bsm: 'lqs', dec: [[1, ['e-']]] },
+  LQs: { lab: 'LQ⁻¹ᐟ³', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, singleMade: true, bsm: 'lqs', dec: [[1, ['e-']]] },
   qRem: { lab: '(ud)', m: 580, q: 1 / 3, B: 2 / 3, tau: Infinity, col: [200, 200, 200], cc: 'qRem', strong: false, remnant: true, dec: [] },
   BH: { lab: 'BH', m: 1.2e7, q: 0, B: 0, tau: 1e-27, col: [120, 80, 160], cc: 'BH', res: true, hypo: true, strong: false, bsm: 'bh', dec: [[1, ['g']]] },
 });
@@ -29176,7 +29176,7 @@ Object.assign(XP, {
    (below the 930 MeV of iron's, which is what would make it stable) and a surface term, MeV. Charge about 0.1·A. */
 function sletMass(A) { return A * (900 + 50 / Math.cbrt(A)); }
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n', d: 'dbar', dbar: 'd', t: 'tbar', tbar: 't', h: 'hbar', hbar: 'h', a: 'abar', abar: 'a' })[t] || t; }
-for (const [k, of, lab] of [['Pcsb4459', 'Pcs4459', 'P̄cs(4459)⁰'], ['Omcccb', 'Omccc', 'Ω̄ccc⁻⁻'], ['LQb', 'LQ', 'L̄Q'], ['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['Pcsb4459', 'Pcs4459', 'P̄cs(4459)⁰'], ['Omcccb', 'Omccc', 'Ω̄ccc⁻⁻'], ['LQb', 'LQ', 'L̄Q⁺¹ᐟ³'], ['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
   if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰', 'Tcc⁺': 'T̄cc⁻', S: 'S̄' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)
@@ -36125,6 +36125,10 @@ function drawExos() {
   ctx.save();
   ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
   const mg = 30 + (R.view.bohr === 'nuc' ? 0.6 * R.s : 0); // (its orbits reach 0.53 Å out: positronium's ring was cut off, or vanished, near an edge when zoomed in, bug B17, 1.30)
+  for (const o of W.exo) { // (a leptoquark is coloured: a faint dashed line to what it is colour-joined to, its antiparticle or, made alone, the rest of the proton; 1.39.4)
+    const t = o.dead ? null : o.sp === 'LQ' ? o.pair : o.sp === 'LQs' ? o.rem : null; if (!t || t.dead) continue;
+    ctx.strokeStyle = rgba(XP[o.sp].col, 0.55); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(w2sx(o.x), w2sy(o.y)); ctx.lineTo(w2sx(t.x), w2sy(t.y)); ctx.stroke(); ctx.setLineDash([]);
+  }
   for (const o of W.exo) {
     if (o.dead) continue;
     const x = w2sx(o.x), y = w2sy(o.y);
@@ -38701,6 +38705,10 @@ function drawExos3(ctx) {
   if (!W.exo.length) return;
   const A = _p3c;
   ctx.save(); ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  { const B = [0, 0, 0]; for (const o of W.exo) { // (a leptoquark's colour link, as in the flat view, 1.39.4)
+    const t = o.dead ? null : o.sp === 'LQ' ? o.pair : o.sp === 'LQs' ? o.rem : null; if (!t || t.dead || !proj3(o.x, o.y, o.z || 0, A)) continue; const ax = A[0], ay = A[1]; if (!proj3(t.x, t.y, t.z || 0, B)) continue;
+    ctx.strokeStyle = rgba(XP[o.sp].col, 0.55); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
+  } }
   for (const o of W.exo) {
     if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
@@ -42705,10 +42713,11 @@ function placeFly(spec, x, y, count, z = 0) {
   if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].ps && !RP.ps) { log('tool', PS_NEED); toolNote(PS_NEED, 'rpPs', 'Turn Positronium on'); return []; } // (positronium needs its switch: what it does in matter is that switch's, 1.27 item 32)
   if (W.d3 && spec.kind === 'gamma') { for (let i = 0; i < count; i++) emitPhoton(x, y, placeE(), undefined, undefined, { travel: true, z }); return []; } // (3-D: a random direction on the sphere, from its depth, 1.24)
   if (W.d3 && spec.kind === 'nu') { for (let i = 0; i < count; i++) emitNeutrino(x, y, placeE(), undefined, undefined, !!spec.anti, 'placed by hand', spec.fl || 'e', z); return []; }
-  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], resPlaceMass(spec.sp), z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
+  if (W.d3 && spec.kind === 'exo') { for (let i = 0; i < count; i++) { const u = rndDir(), k = count > 1 ? 0.5 * Math.sqrt(i) : 0; if (spec.sp === 'Mu') addMuonium(x + k * u[0], y + k * u[1], 1.5 * PHYS.KB * W.T, u[0], u[1], 1, z + k * u[2], u[2]); else if (XP[spec.sp] && (XP[spec.sp].pairMade || XP[spec.sp].singleMade)) fireSpec(spec, x + k * u[0], y + k * u[1], u[0], u[1], 0.03, false, z + k * u[2], u[2]); /* (1.39.4) */ else if (W.exo.length < MAX_EXO) addExo(spec.sp, x + k * u[0], y + k * u[1], 0.03, u[0], u[1], resPlaceMass(spec.sp), z + k * u[2], u[2]); } return []; } // (made nearly at rest, in depth)
   for (let i = 0; i < count; i++) {
     const [ux, uy] = rdir();
     if (spec.kind === 'exo' && spec.sp === 'Mu') addMuonium(x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), PHYS.KB * W.T, ux, uy); // (1.12: an atom, in MD)
+    else if (spec.kind === 'exo' && XP[spec.sp] && (XP[spec.sp].pairMade || XP[spec.sp].singleMade)) fireSpec(spec, x, y, ux, uy, 0.03); // (a leptoquark: with its antiparticle, or alone with the proton's remnant and its positron, as the fire tool makes it; placed bare it decayed into nothing, 1.39.4)
     else if (spec.kind === 'exo') { if (W.exo.length < MAX_EXO) addExo(spec.sp, x + (count > 1 ? 0.5 * ux * Math.sqrt(i) : 0), y + (count > 1 ? 0.5 * uy * Math.sqrt(i) : 0), 0.03, ux, uy, resPlaceMass(spec.sp)); } // (a resonance's own mass from its width, Realistic particles 5, 1.27; off: the table's)
     else if (spec.kind === 'gamma') emitPhoton(x, y, placeE(), ux, uy, { travel: true });
     else emitNeutrino(x, y, placeE(), ux, uy, !!spec.anti, 'placed by hand', spec.fl || 'e');

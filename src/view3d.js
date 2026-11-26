@@ -900,6 +900,10 @@ function drawExos3(ctx) {
   if (!W.exo.length) return;
   const A = _p3c;
   ctx.save(); ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  { const B = [0, 0, 0]; for (const o of W.exo) { // (a leptoquark's colour link, as in the flat view, 1.39.4)
+    const t = o.dead ? null : o.sp === 'LQ' ? o.pair : o.sp === 'LQs' ? o.rem : null; if (!t || t.dead || !proj3(o.x, o.y, o.z || 0, A)) continue; const ax = A[0], ay = A[1]; if (!proj3(t.x, t.y, t.z || 0, B)) continue;
+    ctx.strokeStyle = rgba(XP[o.sp].col, 0.55); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
+  } }
   for (const o of W.exo) {
     if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;

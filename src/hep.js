@@ -120,12 +120,12 @@ Object.assign(XP, {
      placing makes its antiparticle too), and the pair decays together (bsmDecay 'lq'): its lone quark could not become
      hadrons with the charge whole. A leptoquark carries a third of a baryon number (the quark it turns into) and a lepton
      number: B ⅓ (1.39.3: it had 0, so the single one's decay made baryon number). */
-  LQ: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, pairMade: true, bsm: 'lq', dec: [[1, ['e-']]] },
+  LQ: { lab: 'LQ⁻¹ᐟ³', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, pairMade: true, bsm: 'lq', dec: [[1, ['e-']]] },
   /* (1.39.3 item 111) A single leptoquark, as the LHC makes one: u + g → LQ + e⁺. The struck proton's other quarks (a u d
      diquark, 580 MeV: its constituent mass) fly on, colour-joined to the leptoquark; when it decays (e⁻ u), that u and the
      diquark become hadrons together (charge +1, baryon number 1: whole). qRem: the diquark, a third of a charge and two of
      a baryon, never free: it lives only with its leptoquark (1.65×10⁻²⁴ s). */
-  LQs: { lab: 'LQ', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, singleMade: true, bsm: 'lqs', dec: [[1, ['e-']]] },
+  LQs: { lab: 'LQ⁻¹ᐟ³', m: 2.0e6, w: 400, q: -1 / 3, B: 1 / 3, tau: 1.65e-24, col: [255, 140, 200], cc: 'LQb', res: true, hypo: true, strong: false, singleMade: true, bsm: 'lqs', dec: [[1, ['e-']]] },
   qRem: { lab: '(ud)', m: 580, q: 1 / 3, B: 2 / 3, tau: Infinity, col: [200, 200, 200], cc: 'qRem', strong: false, remnant: true, dec: [] },
   BH: { lab: 'BH', m: 1.2e7, q: 0, B: 0, tau: 1e-27, col: [120, 80, 160], cc: 'BH', res: true, hypo: true, strong: false, bsm: 'bh', dec: [[1, ['g']]] },
 });
@@ -133,7 +133,7 @@ Object.assign(XP, {
    (below the 930 MeV of iron's, which is what would make it stable) and a surface term, MeV. Charge about 0.1·A. */
 function sletMass(A) { return A * (900 + 50 / Math.cbrt(A)); }
 function conjTok(t) { return XP[t] ? XP[t].cc : ({ 'e-': 'e+', 'e+': 'e-', nu: 'nub', nub: 'nu', numu: 'numub', numub: 'numu', nutau: 'nutaub', nutaub: 'nutau', p: 'pbar', pbar: 'p', n: 'nbar', nbar: 'n', d: 'dbar', dbar: 'd', t: 'tbar', tbar: 't', h: 'hbar', hbar: 'h', a: 'abar', abar: 'a' })[t] || t; }
-for (const [k, of, lab] of [['Pcsb4459', 'Pcs4459', 'P̄cs(4459)⁰'], ['Omcccb', 'Omccc', 'Ω̄ccc⁻⁻'], ['LQb', 'LQ', 'L̄Q'], ['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
+for (const [k, of, lab] of [['Pcsb4459', 'Pcs4459', 'P̄cs(4459)⁰'], ['Omcccb', 'Omccc', 'Ω̄ccc⁻⁻'], ['LQb', 'LQ', 'L̄Q⁺¹ᐟ³'], ['Rgb', 'Rg', 'R(g̃ūd)⁻'], ['mCPb', 'mCP', 'χ̄q'], ['Tccb', 'Tcc', 'T̄cc(3875)⁻'], ['Sxb', 'Sx', 'S̄ (ūūd̄d̄s̄s̄)'], ['Pcb4312', 'Pc4312', 'P̄c(4312)⁻'], ['Pcb4440', 'Pc4440', 'P̄c(4440)⁻'], ['Pcb4457', 'Pc4457', 'P̄c(4457)⁻'], ['Pcsb4338', 'Pcs4338', 'P̄cs(4338)⁰'], ['K-', 'K+', 'K⁻'], ['Lamb', 'Lam', 'Λ̄'], ['tau+', 'tau-', 'τ⁺'], ['Sigb-', 'Sig+', 'Σ̄⁻'], ['Sigb+', 'Sig-', 'Σ̄⁺'], ['Xib0', 'Xi0', 'Ξ̄⁰'], ['Xib+', 'Xi-', 'Ξ̄⁺'], ['Omgb+', 'Omg-', 'Ω̄⁺'], ['rho-', 'rho+', 'ρ⁻'], ['Ks-', 'Ks+', 'K*⁻'], ['Ksb0', 'Ks0', 'K̄*⁰'], ['Dbmm', 'Dpp', 'Δ̄⁻⁻'], ['Dbm', 'Dp', 'Δ̄⁻'], ['Db0', 'D0', 'Δ̄⁰'], ['Dbp', 'Dm', 'Δ̄⁺'], ['Dcb0', 'Dc0', 'D̄⁰'], ['Dc-', 'Dc+', 'D⁻'], ['Ds-', 'Ds+', 'D⁻s'], ['B-', 'B+', 'B⁻'], ['Bb0', 'B0', 'B̄⁰'], ['Lcb-', 'Lc+', 'Λ̄c⁻'], ['Bsb0', 'Bs0', 'B̄⁰s'], ['Lbb0', 'Lb0', 'Λ̄b⁰'], ['W-', 'W+', 'W⁻']]) { // the antiparticles: every charge reversed, decays mirrored
   const s = XP[of];
   XP[k] = Object.assign({}, s, { lab, q: -s.q, B: s.B ? -s.B : 0, cc: of, dec: s.dec.map(([b, ps]) => [b, ps.map(conjTok)]) });
   if (s.sym) XP[k].sym = { 'Pc⁺': 'P̄c⁻', 'Pcs⁰': 'P̄cs⁰', 'Tcc⁺': 'T̄cc⁻', S: 'S̄' }[s.sym] || s.sym; // (the antipentaquarks' short symbols, 1.28.3)

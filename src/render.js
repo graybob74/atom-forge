@@ -1185,6 +1185,10 @@ function drawExos() {
   ctx.save();
   ctx.font = '600 10px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
   const mg = 30 + (R.view.bohr === 'nuc' ? 0.6 * R.s : 0); // (its orbits reach 0.53 Å out: positronium's ring was cut off, or vanished, near an edge when zoomed in, bug B17, 1.30)
+  for (const o of W.exo) { // (a leptoquark is coloured: a faint dashed line to what it is colour-joined to, its antiparticle or, made alone, the rest of the proton; 1.39.4)
+    const t = o.dead ? null : o.sp === 'LQ' ? o.pair : o.sp === 'LQs' ? o.rem : null; if (!t || t.dead) continue;
+    ctx.strokeStyle = rgba(XP[o.sp].col, 0.55); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(w2sx(o.x), w2sy(o.y)); ctx.lineTo(w2sx(t.x), w2sy(t.y)); ctx.stroke(); ctx.setLineDash([]);
+  }
   for (const o of W.exo) {
     if (o.dead) continue;
     const x = w2sx(o.x), y = w2sy(o.y);

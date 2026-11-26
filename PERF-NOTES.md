@@ -2033,6 +2033,16 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.39.4 (not yet released)
+
+- **Leptoquarks set down with the place tool** (the owner, 2026-11-25: "you can't place leptoquarks" … "they do all look
+  the same"). The place tool (`placeFly`) made a bare `addExo`, so a leptoquark had no antiparticle (or, single, no
+  remnant) and its decay (`lqPairDecay`, `lqSingleDecay`) took it out with nothing made: 0 products. It now goes through
+  `fireSpec`'s branches as the fire tool's do (flat and 3-D): 230 products for a pair, 35 for a single one, books within
+  10⁻² eV. And they looked alike: labels now carry the charge, LQ⁻¹ᐟ³ and L̄Q⁺¹ᐟ³ (the single one is the same
+  particle, LQ⁻¹ᐟ³), and a faint dashed line joins a leptoquark to what it is colour-joined to, its antiparticle or the
+  proton's remnant (`drawExos`, `drawExos3`). Check: f_139 `lqplace`.
+
 ## 1.39.3 (released 2026-11-25): items 111–120 (the owner, 2026-11-25: "Build them all"; item 120: "build it")
 
 - **111, a single leptoquark** (`XP.LQs`, `XP.qRem`, `lqSingleDecay`; fireSpec's `singleMade`). Placing "LQ (single)"

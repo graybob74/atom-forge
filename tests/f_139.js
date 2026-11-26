@@ -808,6 +808,18 @@ PARTS.defon = async (page, check) => { // (1.39.3 item 120: the realistic switch
     `1.39.3 positronium, muonium, exotic atoms, resonance widths, nuclear spin, unstable particles meeting, hydrated electrons, fields of and radiation from moving charges on from the start, the summary "all normal" with them; turned off it stays off; in Settings those off from the start come first (${r.rp}, ${r.xf})`,
     `1.39.3 defon: node ${node} ${JSON.stringify(r)}`);
 };
+PARTS.lqplace = async (page, check) => { // (1.39.4: a leptoquark set down with the place tool decayed into nothing; the three looked the same)
+  const X = load('all', { seed: 1 }), W = X.W, r = {}; let ok = true;
+  for (const d3 of [false, true]) for (const sp of ['LQ', 'LQs']) {
+    X.PRESETS[d3 ? 'd3empty' : 'empty'].build(); W.gamma = 0; const BK = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc;
+    X.placeFly({ kind: 'exo', sp }, 0, 0, 1, 0); const a = W.exo.find(o => o.sp === sp), linked = sp === 'LQ' ? !!(a.pair && a.pair.sp === 'LQb') : !!(a.rem && a.rem.sp === 'qRem');
+    const e1 = BK(); X.step(1e-9); const made = W.exo.filter(o => !o.dead).length + W.parts.length, dE = Math.abs(BK() - e1);
+    r[(d3 ? '3' : '2') + sp] = [linked, made, +dE.toExponential(1)]; if (!(linked && a.dead && made > 10 && dE < 0.05)) ok = false;
+  }
+  const labs = ['LQ', 'LQb'].map(k => X.XP[k].lab);
+  check(ok && labs[0] !== labs[1] && /⁻¹ᐟ³/.test(labs[0]) && /⁺¹ᐟ³/.test(labs[1]), `1.39.4 the place tool sets a leptoquark down with its antiparticle (or, single, with the proton's remnant), and it decays into its products with the books kept, flat and 3-D; labelled with their charges (${labs.join(', ')})`,
+    `1.39.4 lqplace: ${JSON.stringify(r)} ${labs}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
