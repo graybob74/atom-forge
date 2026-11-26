@@ -2033,6 +2033,21 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.39.5 (not yet released)
+
+- **Fast neutrons stay in a closed box's wall** (the owner, 2026-11-26, with a screenshot of a leptoquark pair's event
+  covered in grey dashed trails: "can you fix these fast neutron trails"). A closed box's walls stop charged particles
+  in radiation flight, but every neutron was sent back (`neutronLeaves`: the reflector, Lab → Container, as graphite
+  or beryllium), at any energy: a collision's GeV neutrons went round the box for ever, their trails (which keep the
+  time Settings → Particle trails gives them while their particle lives) filling the screen. Measured, five neutrons
+  in the empty chamber over 10 s: 50 MeV, 489 bounces; 5 GeV, 94 (and 1 GeV until it met another). A reflector returns
+  neutrons up to the MeV of fission and fusion; faster ones break up the wall's nuclei (spallation) or go on through.
+  Now past `N_SPALL` = 20 MeV (the top of the measured neutron data) every wall keeps a neutron, its energy counted as
+  escaped, as a fast proton's: the 50 MeV, 1 GeV and 5 GeV ones stop at their first wall; 1 MeV and 14.1 MeV (D-T)
+  still bounce, so chain reactions and fusion setups are as they were. A physics change (the owner's OK asked at
+  release). The fingerprint suites (f_127h, f_127x, f_ew, f_rp2) and t_energy unchanged; f_bug125 passes; f_1232's 3-D
+  objects check fails as before. Check: f_139 `nspall`.
+
 ## 1.39.4 (released 2026-11-26)
 
 - **Leptoquarks set down with the place tool** (the owner, 2026-11-25: "you can't place leptoquarks" … "they do all look

@@ -858,6 +858,14 @@ PARTS.look3 = async (page, check) => { // (1.39.4: "nothing in 3d should be flat
   if (own) { if (own.errors.length) check(false, '', '1.39.4 look3 page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
   check(r.depth && r.flat && r.cleared && r.drawn >= 10, `1.39.4 in 3-D the particle pictures turn with the camera (bags as shaded balls, quarks on tilted rings in front of and behind the middle, orbits tilted, a monopole's lines in every direction, a strangelet a ball of quarks); ${r.drawn} of 12 drawn as pictures; the flat view unchanged`, `1.39.4 look3: ${JSON.stringify(r)}`);
 };
+PARTS.nspall = async (page, check) => { // (1.39.5: neutrons over 20 MeV stay in a closed box's wall instead of bouncing for ever)
+  const run = (nw) => { const X = load('all', { seed: 4 }), W = X.W; X.PRESETS.empty.build(); W.decayOn = true; W.nWall = nw; const out = [];
+    for (const [i, E] of [1e6, 1.41e7, 5e7, 1e9, 5e9].entries()) { const n = X.addNuc(0, 1, 0, -15 + i * 7, -10 + i * 4, 0, 0, false); X.setMotion(n, E, 0.8, 0.6); out.push(n); }
+    const BK = () => X.totalEnergy().total + W.ledger.bath - W.ledger.nuc, e0 = BK(); for (let f = 0; f < 120; f++) X.simFrame(1 / 60, 1e6);
+    return { left: out.map(n => n.dead ? 0 : 1).join(''), dE: Math.abs(BK() - e0) }; };
+  const r = run('reflect'), a = run('absorb');
+  check(r.left === '11000' && a.left.endsWith('000') && r.dE < 1 && a.dE < 1, `1.39.5 a closed box sends back neutrons of 1 and 14 MeV (a reflector's) but keeps those of 50 MeV, 1 and 5 GeV in its wall (they bounced hundreds of times before), the books kept`, `1.39.5 nspall: ${JSON.stringify({ r, a })}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

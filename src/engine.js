@@ -6485,10 +6485,16 @@ function wallStops(p) { return p.rad && !(p.k === NUC && p.Z === 0); }
    touches them, and they fly out. And one that is no material: neutrons faster than N_FAST leave, slower ones bounce
    back (to clear a box of stray fast neutrons and keep the slowed ones, 0.92). */
 const N_FAST = 1e5, N_THERM = 0.0253; // eV: fast as fission and spallation neutrons are born; thermal at 20 °C
+/* (1.39.5; the owner: "can you fix these fast neutron trails": a collision's GeV neutrons bounced round a closed box
+   for ever, hundreds of times, their trails filling the screen) Past N_SPALL no wall sends a neutron back: a reflector
+   returns neutrons up to the MeV of fission and fusion (D-T's 14.1), but faster ones break up the wall's nuclei
+   (spallation) or go on forward through it; it stays in the wall, its energy counted as escaped, as a fast proton's. */
+const N_SPALL = 2e7; // eV (20 MeV: the top of the measured neutron data, where spallation takes over)
 function neutronLeaves(p) {
   if (!(p.k === NUC && p.Z === 0 && W.wall === 'reflect')) return false;
   const nw = W.nWall;
   if (nw === 'pass') return true;
+  if (keOf(p) > N_SPALL) return true; // (1.39.5)
   if (nw === 'fast') return keOf(p) > N_FAST;
   if (nw === 'absorb') return rnd() < 1 - Math.exp(-5 * Math.sqrt(N_THERM / Math.max(1e-9, keOf(p)))); // (thermal 99.3%, 1 eV 55%, 1 keV 2.5%, 1 MeV 0.08% a hit)
   return false;

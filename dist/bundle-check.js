@@ -9377,10 +9377,16 @@ function wallStops(p) { return p.rad && !(p.k === NUC && p.Z === 0); }
    touches them, and they fly out. And one that is no material: neutrons faster than N_FAST leave, slower ones bounce
    back (to clear a box of stray fast neutrons and keep the slowed ones, 0.92). */
 const N_FAST = 1e5, N_THERM = 0.0253; // eV: fast as fission and spallation neutrons are born; thermal at 20 °C
+/* (1.39.5; the owner: "can you fix these fast neutron trails": a collision's GeV neutrons bounced round a closed box
+   for ever, hundreds of times, their trails filling the screen) Past N_SPALL no wall sends a neutron back: a reflector
+   returns neutrons up to the MeV of fission and fusion (D-T's 14.1), but faster ones break up the wall's nuclei
+   (spallation) or go on forward through it; it stays in the wall, its energy counted as escaped, as a fast proton's. */
+const N_SPALL = 2e7; // eV (20 MeV: the top of the measured neutron data, where spallation takes over)
 function neutronLeaves(p) {
   if (!(p.k === NUC && p.Z === 0 && W.wall === 'reflect')) return false;
   const nw = W.nWall;
   if (nw === 'pass') return true;
+  if (keOf(p) > N_SPALL) return true; // (1.39.5)
   if (nw === 'fast') return keOf(p) > N_FAST;
   if (nw === 'absorb') return rnd() < 1 - Math.exp(-5 * Math.sqrt(N_THERM / Math.max(1e-9, keOf(p)))); // (thermal 99.3%, 1 eV 55%, 1 keV 2.5%, 1 MeV 0.08% a hit)
   return false;
@@ -45721,7 +45727,7 @@ function massText(t) { return M_UNIT === 'u' ? String(t).replace(/(\d[\d,.]*) Me
 function fmtA(a, digits) { const [f, u] = L_UNIT === 'nm' ? [0.1, ' nm'] : L_UNIT === 'pm' ? [100, ' pm'] : [1, ' Å'], v = a * f; return (digits === undefined ? (Math.abs(v) >= 100 ? fmtNum(v, 4) : v.toPrecision(3)) : v.toFixed(digits)) + u; }
 function syncNWall() {
   $('nWallRow').hidden = W.wall !== 'reflect'; setSegValue('segNWall', W.nWall || 'reflect');
-  $('nWallNote').textContent = { reflect: 'They scatter back in, as off a reflector of graphite or beryllium: a chain reaction keeps its neutrons.', absorb: 'They are captured in the wall, as in boron or cadmium, by the 1/v law: the slower the neutron, the likelier (thermal ones almost always, 1 MeV ones about once in a thousand hits; the rest scatter back). The energy goes into the wall.', fast: 'Not a material: neutrons faster than 0.1 MeV (as fission and spallation neutrons are born) leave through the wall, and slower ones bounce back. For clearing a box of stray fast neutrons while keeping the slowed ones.', pass: 'They fly straight out, as through any thin wall (their energy leaves with them): only what they hit on the way in counts.' }[W.nWall || 'reflect'];
+  $('nWallNote').textContent = { reflect: 'They scatter back in, as off a reflector of graphite or beryllium: a chain reaction keeps its neutrons. Neutrons over 20 MeV (from collisions) stay in the wall, as in every wall: they break up its nuclei.', absorb: 'They are captured in the wall, as in boron or cadmium, by the 1/v law: the slower the neutron, the likelier (thermal ones almost always, 1 MeV ones about once in a thousand hits; the rest scatter back). The energy goes into the wall.', fast: 'Not a material: neutrons faster than 0.1 MeV (as fission and spallation neutrons are born) leave through the wall, and slower ones bounce back. For clearing a box of stray fast neutrons while keeping the slowed ones.', pass: 'They fly straight out, as through any thin wall (their energy leaves with them): only what they hit on the way in counts.' }[W.nWall || 'reflect'];
 }
 function viewFlagsSave() { store('viewflags', JSON.stringify(R.view)); }
 /* Undo and redo (Ctrl+Z; Ctrl+Shift+Z or Ctrl+Y): before each change made by hand (a tool pressed on the chamber, a
