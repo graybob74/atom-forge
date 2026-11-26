@@ -2033,7 +2033,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.39.3 (not yet released): items 111–119 (the owner, 2026-11-25: "Build them all")
+## 1.39.3 (released 2026-11-25): items 111–120 (the owner, 2026-11-25: "Build them all"; item 120: "build it")
 
 - **111, a single leptoquark** (`XP.LQs`, `XP.qRem`, `lqSingleDecay`; fireSpec's `singleMade`). Placing "LQ (single)"
   sets down what u + g → LQ + e⁺ leaves: the 2 TeV leptoquark, a positron backwards (300 GeV) and the struck proton's
