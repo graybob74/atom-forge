@@ -2033,7 +2033,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.39.4 (not yet released)
+## 1.39.4 (released 2026-11-26)
 
 - **Leptoquarks set down with the place tool** (the owner, 2026-11-25: "you can't place leptoquarks" … "they do all look
   the same"). The place tool (`placeFly`) made a bare `addExo`, so a leptoquark had no antiparticle (or, single, no
