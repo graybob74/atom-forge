@@ -36136,7 +36136,7 @@ function drawExos() {
     if (x < -mg || y < -mg || x > R.w + mg || y > R.h + mg) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
     if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
-    else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } }
+    else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s) || exoInsideMin(ctx, o, x, y, c, hx); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } } // (1.39.4: what has parts in the particle view shows them here too, at a size that reads: no longer a glowing dot)
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
     ctx.globalCompositeOperation = 'source-over';
@@ -36397,7 +36397,32 @@ function rnUnit(A) { // outer radius of the packed cluster, for a nucleon radius
   if (_rnU[A] === undefined) _rnU[A] = A <= 1 ? 1.12 : Math.sqrt((A - 0.5) / 0.82) + 1.12;
   return _rnU[A];
 }
-function nucleonR() { return clamp(0.045 * R.s, 0.75, 8); } // one size for every nucleon, bound or free
+function nucleonR() { return clamp(0.045 * R.s, R._nmin || 0.75, Math.max(8, R._nmin || 0)); } // one size for every nucleon, bound or free (R._nmin: exoInsideMin's floor)
+/* (1.39.4; the owner: "make hypothetic particles use their 'particle view' look by default" … "and do the same for any particle
+   that just looks like a glowing dot") Outside the particle view an unstable particle with parts (a hadron's quarks, a
+   strangelet, a monopole's field, a black hole …) is drawn as there, its nucleon-sized bag at least EXO_NMIN px, so it
+   reads at any zoom; leptons and other points stay dots. Not in the ultra-realistic mode (true sizes). */
+const EXO_NMIN = 4.5, _exoPic = { by: new Map(), dpr: 0 };
+/* Zoomed out (the bag at its floor) the picture is the same for every particle of a kind: drawn once into a sprite
+   (keyed by species, mass and size) and stamped, as the atoms' balls are: 600 hadrons cost 11 ms a frame drawn each
+   time against 2.5 ms as dots. Zoomed in it is drawn live, as in the particle view. */
+function exoInsideMin(ctx, o, x, y, c, hx) {
+  if (W.ultra) return 0;
+  if (0.045 * R.s >= EXO_NMIN) return exoInside(ctx, o, x, y, c, hx);
+  if (_exoPic.dpr !== R.dpr || _exoPic.by.size > 400) { _exoPic.by.clear(); _exoPic.dpr = R.dpr; }
+  const key = `${o.sp}|${Math.round(Math.log(o.m || 1) * 40)}|${o.A || ''}|${o.q}`;
+  let e = _exoPic.by.get(key);
+  if (!e) {
+    const S = 96, cv = document.createElement('canvas'); cv.width = cv.height = Math.round(S * R.dpr);
+    const c2 = cv.getContext('2d'); c2.scale(R.dpr, R.dpr); c2.font = ctx.font; c2.textAlign = 'center'; c2.textBaseline = 'bottom';
+    const ctx0 = R.ctx; R.ctx = c2; R._nmin = EXO_NMIN; let top;
+    try { top = exoInside(c2, o, S / 2, S / 2, c, hx); } finally { R.ctx = ctx0; R._nmin = 0; }
+    e = { c: cv, size: S, top }; _exoPic.by.set(key, e);
+  }
+  if (!e.top) return 0;
+  ctx.drawImage(e.c, x - e.size / 2, y - e.size / 2, e.size, e.size);
+  return e.top;
+}
 function electronR() { return clamp(0.035 * R.s, 1.0, 3.0); }
 /* Muonium's nucleus is a μ⁺: a lepton, a point with no nucleons (it was drawn as hydrogen's proton, 1.26 bug fix). */
 function muNucleus(ctx, x, y, rmin) {
@@ -38719,7 +38744,7 @@ function drawExos3(ctx) {
       let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
     } else { // (the exotic atoms at their depth's scale, as the flat view, 1.28.1)
-      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]);
+      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
     }
     o._pic3 = false; // (drawn as a ball in depth, among the atoms: exoBalls3; here its label, unless an atom in front hides it)

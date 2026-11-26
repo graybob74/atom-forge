@@ -831,6 +831,20 @@ PARTS.spdcol = async (page, check) => { // (1.39.4: the speed number orange agai
   if (own) { if (own.errors.length) check(false, '', '1.39.4 spdcol page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
   check(r.capped !== r.normal && r.slow === r.capped && r.chosen === r.normal, `1.39.4 the speed number turns orange (${r.capped}) at the computer's limit and in automatic slow motion, not at a slow speed the player chose`, `1.39.4 spdcol: ${JSON.stringify(r)}`);
 };
+PARTS.look = async (page, check) => { // (1.39.4: outside the particle view, what has parts shows them; points stay dots)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    const w = (ms) => new Promise(res => setTimeout(res, ms)); loadPreset('empty'); setRunning(false); W.decayOn = false; R.view.bohr = 'off';
+    const o = {}, ctx = R.ctx, sps = ['pi+', 'Lam', 'Jpsi', 'slet', 'mono', 'BH', 'Sx', 'mu-', 'tau-', 'wimp', 'axion'];
+    for (const sp of sps) { const e = addExo(sp, 0, 0, 0.03, 1, 0); const c = XP[sp].col, hx = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''); o[sp] = exoInsideMin(ctx, e, 50, 50, c, hx); e.dead = true; }
+    W.ultra = true; const e = addExo('pi+', 0, 0, 0.03, 1, 0); o.ultra = exoInsideMin(ctx, e, 50, 50, [255, 160, 70], '#ffa046'); W.ultra = false;
+    for (let i = 0; i < 600; i++) addExo(['pi+', 'K+', 'Lam'][i % 3], -28 + (i % 30) * 2, -18 + Math.floor(i / 30) * 2, 0.03, 1, 0);
+    const t = []; for (let k = 0; k < 30; k++) { const t0 = performance.now(); drawExos(); t.push(performance.now() - t0); } t.sort((a, b) => a - b); o.ms = +t[15].toFixed(1); return o;
+  });
+  if (own) { if (own.errors.length) check(false, '', '1.39.4 look page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+  const parts = ['pi+', 'Lam', 'Jpsi', 'slet', 'mono', 'BH', 'Sx'].every(k => r[k] >= 5), dots = ['mu-', 'tau-', 'wimp', 'axion'].every(k => r[k] < 5); // (a point is drawn as a point: its label just above it)
+  check(parts && dots && !r.ultra && r.ms < 8, `1.39.4 outside the particle view, hadrons, strangelets, monopoles and black holes show their parts; leptons, WIMPs and axions stay points; 600 hadrons drawn in ${r.ms} ms`, `1.39.4 look: ${JSON.stringify(r)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

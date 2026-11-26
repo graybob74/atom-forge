@@ -913,7 +913,7 @@ function drawExos3(ctx) {
       let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
     } else { // (the exotic atoms at their depth's scale, as the flat view, 1.28.1)
-      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]);
+      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
     }
     o._pic3 = false; // (drawn as a ball in depth, among the atoms: exoBalls3; here its label, unless an atom in front hides it)

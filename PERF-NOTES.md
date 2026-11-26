@@ -2048,6 +2048,16 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   computer's limit (`UI.capped`) and in automatic slow motion (`UI.slow`); not when the player picked a slow speed
   (`W.slowSet`), and the hourglass stays gone. Check: f_139 `spdcol`; f_1371's "one colour" check is still right
   (it chooses slow motion by hand).
+- **Particles with parts drawn with them in every view** (the owner, 2026-11-25: "make hypothetic particles use their
+  'particle view' look by default" … "and do the same for any particle that just looks like a glowing dot"). Outside
+  the particle view an unstable particle was a glowing dot unless it was an exotic atom (`exoAtomPic`). Now, after
+  that, `exoInsideMin` draws what the particle view draws (`exoInside`): a hadron's quarks in their bag, a
+  multiquark's two hadrons, a strangelet, a monopole's field lines, a black hole, R-hadrons and glueballs, with the
+  nucleon-sized bag at least 4.5 px (`R._nmin` floors `nucleonR`) so it reads at any zoom; flat and 3-D. Leptons,
+  neutrinos, WIMPs, axions, leptoquarks and the other fundamental particles have no parts: still points. Not in the
+  ultra-realistic mode (true sizes). Zoomed out every particle of a kind looks the same, so the picture is drawn once
+  into a sprite and stamped: 600 hadrons draw in 1.6 ms a frame (2.2 ms as dots before; 11.2 ms drawing each live).
+  Check: f_139 `look`.
 
 ## 1.39.3 (released 2026-11-25): items 111–120 (the owner, 2026-11-25: "Build them all"; item 120: "build it")
 
