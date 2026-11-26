@@ -2058,6 +2058,16 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   ultra-realistic mode (true sizes). Zoomed out every particle of a kind looks the same, so the picture is drawn once
   into a sprite and stamped: 600 hadrons draw in 1.6 ms a frame (2.2 ms as dots before; 11.2 ms drawing each live).
   Check: f_139 `look`.
+- **The particle pictures in depth in 3-D** (the owner, 2026-11-26: "nothing in 3d should be flat!"; asked which, "particle
+  pictures"). In 3-D they were the flat view's drawings: a disc with dots, circles for orbits, an eight-line star.
+  `drawExos3` now sets `R.pic3` to the camera's axes while it draws them, and `pic3(dx, dy, dz)` turns an offset in the
+  picture's own space into the screen's (flat view: the offset itself, so nothing there changes). A bag is a ball lit
+  from the upper left (`bagDisc`), its quarks on a tilted ring (`pring3`), those behind the middle drawn before the bag
+  and seen through it, those in front after; a strangelet is a ball of quarks turning, the nearer drawn last; orbits
+  (muonic atoms, positronium, muonium) and an R-hadron's quarks are tilted rings; a glueball's two colour loops lie in
+  two tilted planes; a multiquark's two hadrons sit along a slanted axis; a monopole's field lines leave in 14
+  directions, foreshortened. Zoomed out the sprites are cached per kind and per camera turn (to about 5°). Placed
+  objects still exist only in the flat game (asked: not part of this). Check: f_139 `look3`.
 
 ## 1.39.3 (released 2026-11-25): items 111–120 (the owner, 2026-11-25: "Build them all"; item 120: "build it")
 

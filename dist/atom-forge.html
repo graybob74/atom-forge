@@ -36151,6 +36151,24 @@ function drawExos() {
    of a nucleon (colour charges red, green, blue; antiquarks in anticolours; a strange quark ringed in white), a
    hypernucleus as its nucleons with the Λ at the centre, ringed, and a muonic atom as its nucleus with the muon's tight
    orbit round it. Leptons have no parts: they stay points. Returns how far above the centre to put the label, or 0. */
+/* (1.39.4; the owner: "nothing in 3d should be flat!") In the 3-D view the particle pictures are drawn in depth: R.pic3
+   holds the camera's axes (right, up, forward) while drawExos3 draws them. pic3(dx, dy, dz) turns an offset in the
+   picture's own space into an offset on the screen and its depth; in the flat view it is the offset itself. A bag is
+   a shaded ball, its quarks go round on a tilted ring (or fill a ball, for a strangelet), nearer ones drawn last and
+   brighter; orbits are tilted rings; a monopole's field lines leave in every direction. */
+const _p3o = [0, 0, 0];
+function pic3(dx, dy, dz) {
+  const P = R.pic3; if (!P) { _p3o[0] = dx; _p3o[1] = dy; _p3o[2] = 0; return _p3o; }
+  _p3o[0] = dx * P.rx + dy * P.ry + dz * P.rz; _p3o[1] = -(dx * P.ux + dy * P.uy + dz * P.uz); _p3o[2] = dx * P.fx + dy * P.fy + dz * P.fz; return _p3o;
+}
+/* A point at angle th on a ring of radius r tilted by tilt about the picture's x axis (flat: the ring itself). */
+function pring3(r, th, tilt) { return pic3(r * Math.cos(th), r * Math.sin(th) * Math.cos(tilt), r * Math.sin(th) * Math.sin(tilt)); }
+function strokeRing3(ctx, x, y, r, tilt) { ctx.beginPath(); for (let i = 0; i <= 48; i++) { const q = pring3(r, i / 48 * Math.PI * 2, tilt); if (i) ctx.lineTo(x + q[0], y + q[1]); else ctx.moveTo(x + q[0], y + q[1]); } ctx.stroke(); }
+/* A bag: flat, a tinted disc with its rim; in 3-D, a ball lit from the upper left. */
+function bagDisc(ctx, x, y, rb, c, fa) {
+  if (R.pic3) { const g = ctx.createRadialGradient(x - rb * 0.35, y - rb * 0.4, rb * 0.1, x, y, rb); g.addColorStop(0, rgba(c.map(v => Math.min(255, v + 70)), fa + 0.22)); g.addColorStop(0.7, rgba(c, fa + 0.06)); g.addColorStop(1, rgba(c.map(v => v * 0.45), fa + 0.18)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); return; }
+  ctx.fillStyle = rgba(c, fa); ctx.strokeStyle = rgba(c, 0.8); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
 function exoInside(ctx, o, x, y, c, hx) {
   const d = XP[o.sp], b = W.ultra ? 0.88 * FM * R.s : nucleonR(); // (ultra-realistic: a nucleon at its true size)
   if (W.ultra && b < 2) return 0;
@@ -36166,14 +36184,14 @@ function exoInside(ctx, o, x, y, c, hx) {
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(x, y, b * 1.05, 0, Math.PI * 2); ctx.stroke();
       return nsp.rn + 2;
     }
-    const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.rt * 6 + o.id; // the muon, a few hundred times closer in than an electron (on the watching clock, W.rt, so it goes round in slow motion too, 1.28.1)
-    ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke();
-    drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    const R0 = nsp.rn + Math.max(3, b * 1.5), th = W.rt * 6 + o.id, tl = 1.0 + 0.3 * Math.sin(o.id); // the muon, a few hundred times closer in than an electron (on the watching clock, W.rt, so it goes round in slow motion too, 1.28.1)
+    ctx.strokeStyle = rgba(c, 0.45); ctx.lineWidth = 1; strokeRing3(ctx, x, y, R0, tl);
+    { const q = pring3(R0, th, tl); drawSprite(ballSprite(hx, Math.max(1.2, electronR() * 0.9)), x + q[0], y + q[1]); }
     return R0 + 2;
   }
   if (d.ps) { // positronium (1.27): an electron and a positron going round their middle, its orbit twice hydrogen's
-    const R0 = Math.max(W.d3 ? 2.5 : 6, 0.53 * R.s), th = W.rt * 4 + o.id, er = electronR(), cx = R0 * Math.cos(th), cy = R0 * Math.sin(th); // (W.rt: round while running at any speed, 1.28.1: on the pictures' clock they sat still in slow motion)
-    ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    const R0 = Math.max(W.d3 ? 2.5 : 6, 0.53 * R.s), th = W.rt * 4 + o.id, er = electronR(), tl = 1.0 + 0.3 * Math.sin(o.id), q0 = pring3(R0, th, tl), cx = q0[0], cy = q0[1]; // (W.rt: round while running at any speed, 1.28.1: on the pictures' clock they sat still in slow motion)
+    ctx.strokeStyle = rgba(c, 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); strokeRing3(ctx, x, y, R0, tl); ctx.setLineDash([]);
     drawSprite(ballSprite(E_COL, er), x + cx, y + cy); drawSprite(ballSprite(POS_COL, er), x - cx, y - cy);
     return R0 + 2;
   }
@@ -36183,8 +36201,8 @@ function exoInside(ctx, o, x, y, c, hx) {
     if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rm * 4)), x, y, 0.4);
     ctx.globalCompositeOperation = 'source-over';
     drawSprite(ballSprite(hx, rm), x, y);
-    ctx.strokeStyle = rgba([90, 170, 255], 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, R0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-    drawSprite(ballSprite(E_COL, electronR()), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
+    const tl = 1.0 + 0.3 * Math.sin(o.id); ctx.strokeStyle = rgba([90, 170, 255], 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); strokeRing3(ctx, x, y, R0, tl); ctx.setLineDash([]);
+    { const q = pring3(R0, th, tl); drawSprite(ballSprite(E_COL, electronR()), x + q[0], y + q[1]); }
     return R0 + 2;
   }
   if (d.hypN) { // (1.39.1 item 104) ⁶ΛΛHe, anti-⁴ΛH: its nucleons (antinucleons), its Λ (Λ̄) ringed at the middle
@@ -36195,9 +36213,9 @@ function exoInside(ctx, o, x, y, c, hx) {
     drawSprite(nsp, x, y);
     const lk = h.anti ? 'Lamb' : 'Lam', lc = _xpHex[lk] || (_xpHex[lk] = '#' + XP[lk].col.map(v => v.toString(16).padStart(2, '0')).join(''));
     for (let k = 0; k < h.nL; k++) {
-      const lx = x + (h.nL > 1 ? (k ? 0.55 : -0.55) * b : 0);
-      drawSprite(ballSprite(lc, b), lx, y);
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(lx, y, b * 1.05, 0, Math.PI * 2); ctx.stroke();
+      const q = pic3(h.nL > 1 ? (k ? 0.55 : -0.55) * b : 0, 0, h.nL > 1 ? (k ? 0.3 : -0.3) * b : 0), lx = x + q[0], ly = y + q[1];
+      drawSprite(ballSprite(lc, b), lx, ly);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, b * 0.25); ctx.beginPath(); ctx.arc(lx, ly, b * 1.05, 0, Math.PI * 2); ctx.stroke();
     }
     return nsp.rn + 2;
   }
@@ -36211,15 +36229,15 @@ function exoInside(ctx, o, x, y, c, hx) {
   if (o.sp === 'G2370') { // (a glueball: gluons only, as loops of colour field, 1.39.1)
     const rb = b * 1.15; ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 3)), x, y, 0.35); ctx.globalCompositeOperation = 'source-over';
     ctx.lineWidth = Math.max(1, b * 0.18);
-    for (let k = 0; k < 2; k++) { ctx.strokeStyle = Q_COL[k]; ctx.beginPath(); for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = rb * (0.55 + 0.12 * Math.sin(a * 8 + W.at * 4 + k * 2)), th = a + k * 0.7 + W.at * 0.8; const px = x + r * Math.cos(th), py = y + r * Math.sin(th) * (k ? 0.6 : 1); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); } ctx.stroke(); }
+    for (let k = 0; k < 2; k++) { ctx.strokeStyle = Q_COL[k]; ctx.beginPath(); const tl = k ? 1.1 : -0.5; for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = rb * (0.55 + 0.12 * Math.sin(a * 8 + W.at * 4 + k * 2)), q = pring3(r, a + W.at * (k ? 0.7 : -0.5), R.pic3 ? tl : 0); if (i) ctx.lineTo(x + q[0], y + q[1]); else ctx.moveTo(x + q[0], y + q[1]); } ctx.stroke(); } // (two loops of colour field; in 3-D in two tilted planes, 1.39.4)
     return rb + 2;
   }
   if (o.sp === 'Rg' || o.sp === 'Rgb') { // (an R-hadron: a heavy gluino at the middle, a quark and an antiquark round it, 1.39.1)
     const anti = o.sp === 'Rgb', gr = b * 0.7, R0 = b * 1.3, th = W.at * 1.3 + o.id;
     ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(7, R0 * 2.5)), x, y, 0.35); ctx.globalCompositeOperation = 'source-over';
     drawSprite(ballSprite('#f0a040', gr), x, y);
-    drawSprite(ballSprite((anti ? Q_ACOL : Q_COL)[0], b * 0.42), x + R0 * Math.cos(th), y + R0 * Math.sin(th));
-    drawSprite(ballSprite((anti ? Q_COL : Q_ACOL)[1], b * 0.42), x - R0 * Math.cos(th), y - R0 * Math.sin(th));
+    const q = pring3(R0, th, 0.9), qx = q[0], qy = q[1], qz = q[2], s1 = () => drawSprite(ballSprite((anti ? Q_ACOL : Q_COL)[0], b * 0.42), x + qx, y + qy), s2 = () => drawSprite(ballSprite((anti ? Q_COL : Q_ACOL)[1], b * 0.42), x - qx, y - qy);
+    if (qz > 0) { s1(); s2(); } else { s2(); s1(); } // (the nearer last)
     return R0 + 2;
   }
   if (d.hypo && !(typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp])) { // (WIMP, axion, dark photon, monopole: points, as leptons; a monopole with its field lines, all out (a north pole))
@@ -36228,7 +36246,8 @@ function exoInside(ctx, o, x, y, c, hx) {
     if (!R.lite) drawSprite(glowSprite(c, Math.max(6, rl * 4)), x, y, 0.45);
     ctx.globalCompositeOperation = 'source-over';
     if (o.sp === 'mono') { const L = Math.max(8, rl * 6); ctx.strokeStyle = rgba(c, 0.55); ctx.lineWidth = 1; ctx.beginPath();
-      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.2; ctx.moveTo(x + rl * 1.5 * Math.cos(a), y + rl * 1.5 * Math.sin(a)); ctx.lineTo(x + L * Math.cos(a), y + L * Math.sin(a)); }
+      if (R.pic3) for (let k = 0; k < 14; k++) { const zz = 1 - 2 * (k + 0.5) / 14, rr = Math.sqrt(1 - zz * zz), a = k * 2.39996 + 0.2, q = pic3(rr * Math.cos(a), rr * Math.sin(a), zz), u0 = q[0], u1 = q[1]; ctx.moveTo(x + rl * 1.5 * u0, y + rl * 1.5 * u1); ctx.lineTo(x + L * u0, y + L * u1); } // (in 3-D: lines out in every direction, foreshortened)
+      else for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.2; ctx.moveTo(x + rl * 1.5 * Math.cos(a), y + rl * 1.5 * Math.sin(a)); ctx.lineTo(x + L * Math.cos(a), y + L * Math.sin(a)); }
       ctx.stroke(); }
     drawSprite(ballSprite(hx, rl), x, y);
     return o.sp === 'mono' ? Math.max(8, rl * 6) + 2 : rl + 2;
@@ -36244,13 +36263,14 @@ function exoInside(ctx, o, x, y, c, hx) {
   const qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[o.sp];
   if (!qc) return 0;
   if (qc.length === 4) { // (a tetraquark, 1.39.1: two mesons side by side, the "molecule" reading, as the X(3872) and Tcc⁺ sit at their thresholds)
-    const sx = b * 0.75, t1 = exoBag(ctx, o, x - sx, y, c, b * 0.85, qc[0] + qc[3], 0), t2 = exoBag(ctx, o, x + sx, y, c, b * 0.85, qc[1] + qc[2], 2);
+    const q = pic3(b * 0.75, 0, b * 0.4), sx = q[0], sy = q[1], d1 = () => exoBag(ctx, o, x - sx, y - sy, c, b * 0.85, qc[0] + qc[3], 0), d2 = () => exoBag(ctx, o, x + sx, y + sy, c, b * 0.85, qc[1] + qc[2], 2);
+    let t1, t2; if (q[2] > 0) { t1 = d1(); t2 = d2(); } else { t2 = d2(); t1 = d1(); }
     return Math.max(t1, t2) + 2;
   }
   if (o.sp === 'Sx' || o.sp === 'Sxb') return exoBag(ctx, o, x, y, c, b * 0.6, qc, 0); // (the sexaquark: compact, smaller than a proton, 1.39.1)
   if (qc.length === 5) { // (a pentaquark, 1.28.3: its baryon and its meson side by side, the "molecule" reading)
-    const sx = b * 0.95;
-    const t1 = exoBag(ctx, o, x - sx, y, c, b, qc.slice(0, 3), 0), t2 = exoBag(ctx, o, x + sx * 1.1, y, c, b * 0.8, qc.slice(3), 3);
+    const q = pic3(b * 0.95, 0, b * 0.45), sx = q[0], sy = q[1], d1 = () => exoBag(ctx, o, x - sx, y - sy, c, b, qc.slice(0, 3), 0), d2 = () => exoBag(ctx, o, x + sx * 1.1, y + sy * 1.1, c, b * 0.8, qc.slice(3), 3);
+    let t1, t2; if (q[2] > 0) { t1 = d1(); t2 = d2(); } else { t2 = d2(); t1 = d1(); }
     return Math.max(t1, t2) + 2;
   }
   return exoBag(ctx, o, x, y, c, b, qc, 0);
@@ -36262,12 +36282,18 @@ function sletInside(ctx, o, x, y, c, b) {
   ctx.globalCompositeOperation = 'lighter';
   if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 2.2)), x, y, 0.35);
   ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = rgba(c, 0.14); ctx.strokeStyle = rgba(c, 0.8); ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  bagDisc(ctx, x, y, rb, c, 0.14);
   if (rb < 3) return rb + 2;
   const qs = sletQuarks(A, o.q), rot = W.at * 0.3 + o.id;
-  for (let k = 0; k < n; k++) {
-    const r = rb * 0.92 * Math.sqrt((k + 0.5) / n), a = k * 2.39996 + rot, qx = x + r * Math.cos(a), qy = y + r * Math.sin(a);
+  const ord = [];
+  for (let k = 0; k < n; k++) { // (flat: a sunflower's seeds; 3-D: through a ball, turning, the nearer drawn last, 1.39.4)
+    let qx, qy, z = 0;
+    if (R.pic3) { const zz = 1 - 2 * (k + 0.5) / n, rr = Math.sqrt(1 - zz * zz), rad = rb * 0.85 * Math.cbrt((k * 0.618034) % 1 * 0.9 + 0.1), a = k * 2.39996, ca = Math.cos(rot), sa = Math.sin(rot), lx = rr * Math.cos(a), lz = zz, q = pic3(rad * (lx * ca - lz * sa), rad * rr * Math.sin(a), rad * (lx * sa + lz * ca)); qx = x + q[0]; qy = y + q[1]; z = q[2]; }
+    else { const r = rb * 0.92 * Math.sqrt((k + 0.5) / n), a = k * 2.39996 + rot; qx = x + r * Math.cos(a); qy = y + r * Math.sin(a); }
+    ord.push([k, qx, qy, z]);
+  }
+  if (R.pic3) ord.sort((a, b2) => b2[3] - a[3]);
+  for (const [k, qx, qy] of ord) {
     drawSprite(ballSprite(Q_COL[k % 3], qr), qx, qy);
     if (qs[k] === 's' && qr > 1.5) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.6, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }
   }
@@ -36279,18 +36305,23 @@ function exoBag(ctx, o, x, y, c, b, qc, k0) {
   ctx.globalCompositeOperation = 'lighter';
   if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 3)), x, y, 0.35);
   ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = rgba(c, 0.16); ctx.strokeStyle = rgba(c, 0.8); ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (!R.pic3) bagDisc(ctx, x, y, rb, c, 0.16);
   const big = qr > 5;
   if (big) { ctx.font = `600 ${Math.round(qr * 1.2)}px "Azeret Mono", ui-monospace, monospace`; ctx.textBaseline = 'middle'; }
-  let ci = 0;
-  qs.forEach((q, k) => {
-    const anti = q === q.toUpperCase(), f = q.toLowerCase(), th = W.at * 1.3 + o.id + k0 + k * 2 * Math.PI / qs.length, rr = rb * (qs.length > 3 ? 0.58 : 0.5);
-    const qx = x + rr * Math.cos(th), qy = y + rr * Math.sin(th), col = qs.length === 2 ? (anti ? Q_ACOL : Q_COL)[(o.id + Math.floor(W.at * 2)) % 3] : (anti ? Q_ACOL : Q_COL)[ci++ % 3];
+  let ci = 0; const tl = R.pic3 ? 1.0 + 0.4 * Math.sin(o.id + k0) : 0;
+  const qq = qs.map((q, k) => { // (in 3-D: on a tilted ring, the nearer drawn last, 1.39.4)
+    const anti = q === q.toUpperCase(), th = W.at * 1.3 + o.id + k0 + k * 2 * Math.PI / qs.length, rr = rb * (qs.length > 3 ? 0.58 : 0.5), p = pring3(rr, th, tl);
+    return { q, anti, f: q.toLowerCase(), qx: x + p[0], qy: y + p[1], z: p[2], col: qs.length === 2 ? (anti ? Q_ACOL : Q_COL)[(o.id + Math.floor(W.at * 2)) % 3] : (anti ? Q_ACOL : Q_COL)[ci++ % 3] };
+  });
+  if (R.pic3) qq.sort((a, b2) => b2.z - a.z);
+  let bagDone = !R.pic3;
+  qq.forEach(({ anti, f, qx, qy, col, z }) => {
+    if (!bagDone && z <= 0) { bagDisc(ctx, x, y, rb, c, 0.16); bagDone = true; } // (3-D: the quarks behind the middle seen through the bag, those in front over it)
     drawSprite(ballSprite(col, qr), qx, qy);
     if (f === 's') { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, qr * 0.22); ctx.beginPath(); ctx.arc(qx, qy, qr * 1.05, 0, Math.PI * 2); ctx.stroke(); }
     if (big) { ctx.fillStyle = '#10161f'; ctx.fillText(anti ? Q_BAR[f] : Q_SYM[f], qx, qy + 0.5); }
   });
+  if (!bagDone) bagDisc(ctx, x, y, rb, c, 0.16);
   if (big) ctx.textBaseline = 'bottom';
   return rb + 2;
 }
@@ -36410,7 +36441,7 @@ function exoInsideMin(ctx, o, x, y, c, hx) {
   if (W.ultra) return 0;
   if (0.045 * R.s >= EXO_NMIN) return exoInside(ctx, o, x, y, c, hx);
   if (_exoPic.dpr !== R.dpr || _exoPic.by.size > 400) { _exoPic.by.clear(); _exoPic.dpr = R.dpr; }
-  const key = `${o.sp}|${Math.round(Math.log(o.m || 1) * 40)}|${o.A || ''}|${o.q}`;
+  const P = R.pic3, key = `${o.sp}|${Math.round(Math.log(o.m || 1) * 40)}|${o.A || ''}|${o.q}` + (P ? `|${[P.rx, P.ry, P.rz, P.ux, P.uy, P.uz].map(v => Math.round(v * 12)).join(',')}` : ''); // (in 3-D also by the camera's turn, to about 5°)
   let e = _exoPic.by.get(key);
   if (!e) {
     const S = 96, cv = document.createElement('canvas'); cv.width = cv.height = Math.round(S * R.dpr);
@@ -38735,7 +38766,8 @@ function drawExos3(ctx) {
     const t = o.dead ? null : o.sp === 'LQ' ? o.pair : o.sp === 'LQs' ? o.rem : null; if (!t || t.dead || !proj3(o.x, o.y, o.z || 0, A)) continue; const ax = A[0], ay = A[1]; if (!proj3(t.x, t.y, t.z || 0, B)) continue;
     ctx.strokeStyle = rgba(XP[o.sp].col, 0.55); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
   } }
-  for (const o of W.exo) {
+  R.pic3 = C3; // (the pictures in depth, with the camera's axes, 1.39.4)
+  try { for (const o of W.exo) {
     if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col;
@@ -38751,7 +38783,7 @@ function drawExos3(ctx) {
     if (!_occ3.built) occBuild3();
     if (occHidden3(x, y, A[2])) continue;
     const r = exoR3(A[2]); ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - r - 3);
-  }
+  } } finally { R.pic3 = null; }
   ctx.restore();
 }
 /* Magnets in 3-D (1.24): each a ball (dashed outline, a faint glow, N red / S blue) with an arrow through it along the

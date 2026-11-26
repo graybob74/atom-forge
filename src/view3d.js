@@ -904,7 +904,8 @@ function drawExos3(ctx) {
     const t = o.dead ? null : o.sp === 'LQ' ? o.pair : o.sp === 'LQs' ? o.rem : null; if (!t || t.dead || !proj3(o.x, o.y, o.z || 0, A)) continue; const ax = A[0], ay = A[1]; if (!proj3(t.x, t.y, t.z || 0, B)) continue;
     ctx.strokeStyle = rgba(XP[o.sp].col, 0.55); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
   } }
-  for (const o of W.exo) {
+  R.pic3 = C3; // (the pictures in depth, with the camera's axes, 1.39.4)
+  try { for (const o of W.exo) {
     if (o.dead || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
     const c = XP[o.sp].col;
@@ -920,7 +921,7 @@ function drawExos3(ctx) {
     if (!_occ3.built) occBuild3();
     if (occHidden3(x, y, A[2])) continue;
     const r = exoR3(A[2]); ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - r - 3);
-  }
+  } } finally { R.pic3 = null; }
   ctx.restore();
 }
 /* Magnets in 3-D (1.24): each a ball (dashed outline, a faint glow, N red / S blue) with an arrow through it along the

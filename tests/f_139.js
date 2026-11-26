@@ -845,6 +845,19 @@ PARTS.look = async (page, check) => { // (1.39.4: outside the particle view, wha
   const parts = ['pi+', 'Lam', 'Jpsi', 'slet', 'mono', 'BH', 'Sx'].every(k => r[k] >= 5), dots = ['mu-', 'tau-', 'wimp', 'axion'].every(k => r[k] < 5); // (a point is drawn as a point: its label just above it)
   check(parts && dots && !r.ultra && r.ms < 8, `1.39.4 outside the particle view, hadrons, strangelets, monopoles and black holes show their parts; leptons, WIMPs and axions stay points; 600 hadrons drawn in ${r.ms} ms`, `1.39.4 look: ${JSON.stringify(r)}`);
 };
+PARTS.look3 = async (page, check) => { // (1.39.4: "nothing in 3d should be flat": the particle pictures drawn in depth)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    const w = (ms) => new Promise(res => setTimeout(res, ms)), o = {}; loadPreset('d3empty'); setRunning(false); W.decayOn = false; RP.ps = true;
+    for (const [i, sp] of ['pi+', 'Lam', 'Jpsi', 'slet', 'mono', 'G2370', 'Rg', 'X3872', 'Pc4312', 'oPs', 'muP', 'BH'].entries()) addExo(sp, -12 + (i % 4) * 8, 9 - Math.floor(i / 4) * 8, 0.03, 1, 0, undefined, 0, 0);
+    cam3Update(); R.pic3 = C3; const f = pic3(C3.fx, C3.fy, C3.fz).slice(), rr = pic3(C3.rx, C3.ry, C3.rz).slice(); R.pic3 = null; const flat = pic3(1, 2, 3).slice();
+    o.depth = Math.abs(f[2] - 1) < 1e-9 && Math.abs(f[0]) < 1e-9 && Math.abs(rr[0] - 1) < 1e-9 && Math.abs(rr[2]) < 1e-9; o.flat = flat.join() === '1,2,0';
+    for (const v of ['off', 'nuc']) { R.view.bohr = v; R.dirty = true; await w(150); } R.view.bohr = 'off';
+    o.cleared = R.pic3 === null; o.drawn = W.exo.filter(e => e._pic3).length; return o;
+  });
+  if (own) { if (own.errors.length) check(false, '', '1.39.4 look3 page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+  check(r.depth && r.flat && r.cleared && r.drawn >= 10, `1.39.4 in 3-D the particle pictures turn with the camera (bags as shaded balls, quarks on tilted rings in front of and behind the middle, orbits tilted, a monopole's lines in every direction, a strangelet a ball of quarks); ${r.drawn} of 12 drawn as pictures; the flat view unchanged`, `1.39.4 look3: ${JSON.stringify(r)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
