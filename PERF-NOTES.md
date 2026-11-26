@@ -2042,6 +2042,12 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   10⁻² eV. And they looked alike: labels now carry the charge, LQ⁻¹ᐟ³ and L̄Q⁺¹ᐟ³ (the single one is the same
   particle, LQ⁻¹ᐟ³), and a faint dashed line joins a leptoquark to what it is colour-joined to, its antiparticle or the
   proton's remnant (`drawExos`, `drawExos3`). Check: f_139 `lqplace`.
+- **The speed number orange again when the game slows down** (the owner, 2026-11-25: "the speed should still turn orange
+  when the game needs to slow donw"). 1.37.1 (item 101a, "just remove the icon and number color changing") had left the
+  number one colour. It is orange (`--hot`) again whenever the game runs slower than the speed chosen: at the
+  computer's limit (`UI.capped`) and in automatic slow motion (`UI.slow`); not when the player picked a slow speed
+  (`W.slowSet`), and the hourglass stays gone. Check: f_139 `spdcol`; f_1371's "one colour" check is still right
+  (it chooses slow motion by hand).
 
 ## 1.39.3 (released 2026-11-25): items 111–120 (the owner, 2026-11-25: "Build them all"; item 120: "build it")
 

@@ -3937,8 +3937,10 @@ function syncSpeed() {
   const m = W.simPerFrame / UI.baseSpf, v = $('speedVal');
   // the speed actually reached: at the computer's limit (amber) less than asked, as each frame's physics time is used up
   v.textContent = speedText(UI.capped && !W.slowSet ? m * clamp(UI.ach || 1, 1e-4, 1) : m); // (1.14: always a speed from the menu; slow motion sets one) // (the speed setting shows in automatic slow motion too, 0.91)
-  // (1.37.1, item 101a; the owner: "just remove the icon and number color changing": the number keeps one colour, amber
-  // at the computer's limit and violet in slow motion no more; the tooltip still says when the computer limits it)
+  // (1.37.1, item 101a; the owner: "just remove the icon and number color changing": the number kept one colour. 1.39.4,
+  // the owner: "the speed should still turn orange when the game needs to slow down": orange again, at the computer's
+  // limit and in automatic slow motion alike, not when the player chose a slow speed)
+  v.classList.toggle('cap', (!!UI.capped || !!UI.slow) && !W.slowSet);
   const k = Math.round(Math.log2(m));
   $('bSlower').disabled = spfRate(W.simPerFrame) <= ULTRA_SLOWEST * 1.01; $('bFaster').disabled = k >= SPEED_MAX;
   const rate = W.simPerFrame * PHYS.TU_S * 60 * Math.min(1, UI.ach || 1);

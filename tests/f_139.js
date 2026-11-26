@@ -820,6 +820,17 @@ PARTS.lqplace = async (page, check) => { // (1.39.4: a leptoquark set down with 
   check(ok && labs[0] !== labs[1] && /⁻¹ᐟ³/.test(labs[0]) && /⁺¹ᐟ³/.test(labs[1]), `1.39.4 the place tool sets a leptoquark down with its antiparticle (or, single, with the proton's remnant), and it decays into its products with the books kept, flat and 3-D; labelled with their charges (${labs.join(', ')})`,
     `1.39.4 lqplace: ${JSON.stringify(r)} ${labs}`);
 };
+PARTS.spdcol = async (page, check) => { // (1.39.4: the speed number orange again when the game slows down)
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    const v = $('speedVal'), col = () => getComputedStyle(v).color, o = {}; loadPreset('empty'); setRunning(false);
+    UI.capped = false; UI.slow = false; W.slowSet = false; syncSpeed(); o.normal = col();
+    UI.capped = true; syncSpeed(); o.capped = col(); UI.capped = false; UI.slow = true; syncSpeed(); o.slow = col();
+    W.slowSet = true; syncSpeed(); o.chosen = col(); W.slowSet = false; UI.slow = false; syncSpeed(); o.hot = getComputedStyle(document.body).getPropertyValue('--hot').trim(); return o;
+  });
+  if (own) { if (own.errors.length) check(false, '', '1.39.4 spdcol page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+  check(r.capped !== r.normal && r.slow === r.capped && r.chosen === r.normal, `1.39.4 the speed number turns orange (${r.capped}) at the computer's limit and in automatic slow motion, not at a slow speed the player chose`, `1.39.4 spdcol: ${JSON.stringify(r)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;
