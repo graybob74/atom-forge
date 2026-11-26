@@ -4988,6 +4988,15 @@ port's standard). All of 18–32 are built (the owner, 2026-11-06: "just finish 
 119. **More found and predicted hadrons**: the triple-charm Ω_ccc (predicted, not seen: labelled) and the newer
    strange pentaquarks (LHCb's P_ψs^Λ(4338) is in; others since). Built in 1.39.3.
    Items 111–119 built in 1.39.3.
+120. **Realistic switches on by default** (the owner, 2026-11-25: "make every settings switch that doesnt impact
+   performance, is realistic and doesnt change the game too much on by default"). Measured cost ×1 in both modes and
+   tagged realistic: positronium, muonium as hydrogen, exotic atoms, resonance widths and heavy flavour, nuclear spin
+   and γ lines, unstable particles meeting, hydrated electrons, magnetic fields of moving charges, radiation from
+   accelerating charges (proposed on); Rayleigh scattering (its shown rate is boosted ~100×) and photons as waves (light
+   spreads from small openings everywhere) changing more (proposed left off unless the owner wants them); left off:
+   photon polarization (×1–2 in 3-D), detailed nuclear collisions (×1–1.05), large-ring resonance (pauses),
+   ultra-realistic mode and the costly Experimental forces. Those turned on would keep the user's choice instead of
+   resetting at each start; the fingerprint suites would be re-pinned. Waiting for "build it".
 
 **Bug test (2026-11-08, the owner: "You are now a bug tester").** Every setup run 90 frames in the headless page with a
 save/load round trip and the Inspect cards; 24 rounds of random placing (12 particles of any kind) and firing (4 shots,
