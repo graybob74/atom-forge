@@ -2050,6 +2050,8 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   change to mesons and protons"): mesons (a quark and an antiquark, and the tetraquarks: `plainMeson`) likewise, a
   nucleon-sized ball in their own colour (π orange, K yellow, J/ψ cyan …) with the symbol inside; a lone proton or
   antiproton shows "p" or "p̄" inside, as the neutron its "n", instead of a tag below.
+  Then ("make the charmed/other ones that were blue blue instead of purple") every baryon in its own colour, as the
+  mesons: the strange ones' purples, Λc⁺ blue, Λb⁰ orange, the pentaquarks and Ωccc pink (`hadronCol`).
 - **A placed leptoquark pair no longer on top of itself** (the owner: "the lq and anti lq spawn in the same place when
   you place them down"). Set down at rest (`fireSpec`'s `pairMade` branch, KE under 1 keV) they are put 0.4 Å either
   side of the point along their directions; fired, they are still made at one point. Check: f_139 `sizes`.

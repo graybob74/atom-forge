@@ -892,7 +892,7 @@ function exoBalls3() {
 }
 function exoBall2d3(ctx, e) { // (Canvas 2D: its glow, its ball, the depth fog over it)
   if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(e.c, e.g), e.x, e.y, e.ga); ctx.globalCompositeOperation = 'source-over'; }
-  const hx = e.c === BARYON_COL ? '#af7dff' : _xpHex[e.o.sp] || (_xpHex[e.o.sp] = '#' + e.c.map(v => v.toString(16).padStart(2, '0')).join('')), sp = litSprite3(hx), k = e.r / LIT_R; // (a baryon's purple, 1.39.6)
+  const hx = _xpHex[e.o.sp] || (_xpHex[e.o.sp] = '#' + e.c.map(v => v.toString(16).padStart(2, '0')).join('')), sp = litSprite3(hx), k = e.r / LIT_R; // (a baryon's purple, 1.39.6)
   ctx.drawImage(sp.c, e.x - sp.size * k / 2, e.y - sp.size * k / 2, sp.size * k, sp.size * k);
   const f = fog3(e.z); if (f > 0.02) { ctx.globalAlpha = f; ctx.fillStyle = CHAMBER.bg0; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
 }

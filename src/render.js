@@ -1527,7 +1527,7 @@ function freeR(rd, s) { return Math.max(1.6, rd * s); }
    likewise: a ball the size of a nucleon, in its own colour, its symbol inside. */
 function plainMeson(sp) { const d = XP[sp], qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[sp]; return !!d && !d.B && !!qc && (qc.length === 2 || qc.length === 4) && !d.hypo && !d.atom && !d.xat; }
 function plainHadron(sp) { return plainBaryon(sp) || plainMeson(sp); }
-function hadronCol(sp) { return plainBaryon(sp) ? BARYON_COL : XP[sp].col; }
+function hadronCol(sp) { return XP[sp].col; } // (each in its own colour: the strange baryons' purples, Λc⁺ blue, Λb⁰ orange, the pentaquarks pink; the owner: "make the charmed/other ones that were blue blue instead of purple")
 function plainBaryon(sp) { const d = XP[sp]; return !!d && Math.abs(d.B || 0) >= 0.99 && Math.abs(d.B) <= 2.01 && !d.atom && !d.xat && !d.hypN && !d.remnant && sp !== 'slet' && !(d.hypo && d.dark); }
 /* A baryon outside the particle view: a ball the size of a free nucleon, its symbol inside when it reads; returns 0 when
    the symbol is inside (no label above), else how far above to put it. */

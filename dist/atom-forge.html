@@ -36475,7 +36475,7 @@ function freeR(rd, s) { return Math.max(1.6, rd * s); }
    likewise: a ball the size of a nucleon, in its own colour, its symbol inside. */
 function plainMeson(sp) { const d = XP[sp], qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[sp]; return !!d && !d.B && !!qc && (qc.length === 2 || qc.length === 4) && !d.hypo && !d.atom && !d.xat; }
 function plainHadron(sp) { return plainBaryon(sp) || plainMeson(sp); }
-function hadronCol(sp) { return plainBaryon(sp) ? BARYON_COL : XP[sp].col; }
+function hadronCol(sp) { return XP[sp].col; } // (each in its own colour: the strange baryons' purples, Λc⁺ blue, Λb⁰ orange, the pentaquarks pink; the owner: "make the charmed/other ones that were blue blue instead of purple")
 function plainBaryon(sp) { const d = XP[sp]; return !!d && Math.abs(d.B || 0) >= 0.99 && Math.abs(d.B) <= 2.01 && !d.atom && !d.xat && !d.hypN && !d.remnant && sp !== 'slet' && !(d.hypo && d.dark); }
 /* A baryon outside the particle view: a ball the size of a free nucleon, its symbol inside when it reads; returns 0 when
    the symbol is inside (no label above), else how far above to put it. */
@@ -38785,7 +38785,7 @@ function exoBalls3() {
 }
 function exoBall2d3(ctx, e) { // (Canvas 2D: its glow, its ball, the depth fog over it)
   if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(e.c, e.g), e.x, e.y, e.ga); ctx.globalCompositeOperation = 'source-over'; }
-  const hx = e.c === BARYON_COL ? '#af7dff' : _xpHex[e.o.sp] || (_xpHex[e.o.sp] = '#' + e.c.map(v => v.toString(16).padStart(2, '0')).join('')), sp = litSprite3(hx), k = e.r / LIT_R; // (a baryon's purple, 1.39.6)
+  const hx = _xpHex[e.o.sp] || (_xpHex[e.o.sp] = '#' + e.c.map(v => v.toString(16).padStart(2, '0')).join('')), sp = litSprite3(hx), k = e.r / LIT_R; // (a baryon's purple, 1.39.6)
   ctx.drawImage(sp.c, e.x - sp.size * k / 2, e.y - sp.size * k / 2, sp.size * k, sp.size * k);
   const f = fog3(e.z); if (f > 0.02) { ctx.globalAlpha = f; ctx.fillStyle = CHAMBER.bg0; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
 }
