@@ -2052,6 +2052,13 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   antiproton shows "p" or "p̄" inside, as the neutron its "n", instead of a tag below.
   Then ("make the charmed/other ones that were blue blue instead of purple") every baryon in its own colour, as the
   mesons: the strange ones' purples, Λc⁺ blue, Λb⁰ orange, the pentaquarks and Ωccc pink (`hadronCol`).
+  And ("What about hypotheticals and other multiquarks?"): the multiquarks (tetraquarks, pentaquarks, the d*(2380), the
+  sexaquark) were already balls by those rules; the hypotheticals whose pictures were quarks or gluons (strangelet,
+  R-hadrons, the glueball, a proton's remnant: `PLAIN_X`) are balls too, a strangelet's as big as a nucleus of its
+  baryon number. The monopole's field lines and the black hole keep their pictures (their look, not their parts); the
+  fundamental ones (WIMP, axion, sterile neutrino, HNL, neutralino, millicharged, dark photon, Z′, leptoquarks) stay
+  points as leptons do. The symbol inside is the short one (`sym`: Pc⁺, d*⁺, S, G) when it fits the ball, else the
+  label goes above (Tcc(3875)⁺, Pcs(4459)⁰).
 - **A placed leptoquark pair no longer on top of itself** (the owner: "the lq and anti lq spawn in the same place when
   you place them down"). Set down at rest (`fireSpec`'s `pairMade` branch, KE under 1 keV) they are put 0.4 Å either
   side of the point along their directions; fired, they are still made at one point. Check: f_139 `sizes`.

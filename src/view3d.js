@@ -885,7 +885,7 @@ function exoBalls3() {
   for (const o of W.exo) {
     if (o.dead || o._pic3 || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1], z = A[2]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
-    const bar = plainHadron(o.sp), r = bar ? freeR(FREE_N_R * 1.05, C3.F / z) : exoR3(z), c = bar ? hadronCol(o.sp) : XP[o.sp].col; // (a baryon as a nucleon is, purple, 1.39.6)
+    const bar = plainHadron(o.sp), r = bar ? hadronR(o, C3.F / z) : exoR3(z), c = bar ? hadronCol(o.sp) : XP[o.sp].col; // (a baryon as a nucleon is, purple, 1.39.6)
     out.push({ o, x, y, z, r, c, g: clamp(r * (bar ? 3.2 : 4.5), 7, 34), ga: bar ? 0.4 : o.q ? 0.8 : 0.45 });
   }
   return out;
@@ -920,7 +920,7 @@ function drawExos3(ctx) {
     o._pic3 = false; // (drawn as a ball in depth, among the atoms: exoBalls3; here its label, unless an atom in front hides it)
     if (!_occ3.built) occBuild3();
     if (occHidden3(x, y, A[2])) continue;
-    if (plainHadron(o.sp)) { const r = freeR(FREE_N_R * 1.05, C3.F / A[2]); if (r > 9) { label(ctx, o.lab, x, y, r, '#1b1430'); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; } else { ctx.fillStyle = rgba(hadronCol(o.sp), 0.95); ctx.fillText(o.lab, x, y - r - 3); } continue; } // (1.39.6)
+    if (plainHadron(o.sp)) { const r = hadronR(o, C3.F / A[2]), t = hadronSym(o); ctx.font = `600 ${Math.round(clamp(r * 0.95, 8, 30))}px "Hanken Grotesk", system-ui, sans-serif`; const fits = r > 9 && ctx.measureText(t).width < 1.8 * r; if (fits) label(ctx, t, x, y, r, '#1b1430'); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; if (fits) continue; { ctx.fillStyle = rgba(hadronCol(o.sp), 0.95); ctx.fillText(o.lab, x, y - r - 3); } continue; } // (1.39.6)
     const r = exoR3(A[2]); ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - r - 3);
   } } finally { R.pic3 = null; }
   ctx.restore();

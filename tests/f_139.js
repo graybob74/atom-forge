@@ -871,6 +871,7 @@ PARTS.sizes = async (page, check) => { // (1.39.6: free p, n, e drawn half as bi
   const bar = ['Lam', 'Sig+', 'Xi-', 'Omg-', 'Lc+', 'Lamb', 'Omccc', 'Pc4312'].filter(k => X.XP[k]), not = ['pi+', 'K-', 'Jpsi', 'slet', 'qRem', 'wimp', 'mu-'].filter(k => X.XP[k]);
   const bOk = bar.every(X.plainBaryon) && !not.some(X.plainBaryon);
   const mOk = ['pi+', 'pi0', 'K-', 'Jpsi', 'X3872'].filter(k => X.XP[k]).every(X.plainMeson) && !['slet', 'mu-', 'wimp', 'Lam', 'G2370'].some(X.plainMeson); // (1.39.6: mesons likewise)
+  const hOk = ['slet', 'Rg', 'G2370', 'qRem', 'Tcc', 'Pc4312', 'dstar', 'Sx'].every(X.plainHadron) && !['mono', 'BH', 'wimp', 'axion', 'LQ', 'Zp', 'mu-'].some(X.plainHadron); // (and the multiquarks and quark-built hypotheticals)
   X.PRESETS.empty.build(); X.placeFly({ kind: 'exo', sp: 'LQ' }, 0, 0, 1, 0); const lq = X.W.exo.find(o => o.sp === 'LQ'), apart = Math.hypot(lq.x - lq.pair.x, lq.y - lq.pair.y);
   let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
   const r = await page.evaluate(async () => {
@@ -879,8 +880,8 @@ PARTS.sizes = async (page, check) => { // (1.39.6: free p, n, e drawn half as bi
     for (const sp of ['Lam', 'Omg-']) addExo(sp, 0, 0, 0.03, 1, 0); R.dirty = true; await w(200); return o;
   });
   if (own) { if (own.errors.length) check(false, '', '1.39.6 sizes page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
-  check(mOk && Math.abs(apart - 0.8) < 1e-9 && bOk && r.e === 6 && r.n === 10 && r.n < r.H / 3, `1.39.6 at 100 px/Å a free electron is drawn 6 px across its radius (12 before), a neutron 10 (20), a hydrogen atom ${r.H.toFixed(0)}; Λ, Σ, Ξ, Ω, charm and bottom baryons, Ωccc and pentaquarks drawn as purple nucleons, mesons as nucleon-sized balls in their colours; a placed leptoquark pair set 0.8 Å apart`,
-    `1.39.6 sizes: baryons ${bOk} mesons ${mOk} apart ${apart} ${JSON.stringify(r)}`);
+  check(hOk && mOk && Math.abs(apart - 0.8) < 1e-9 && bOk && r.e === 6 && r.n === 10 && r.n < r.H / 3, `1.39.6 at 100 px/Å a free electron is drawn 6 px across its radius (12 before), a neutron 10 (20), a hydrogen atom ${r.H.toFixed(0)}; Λ, Σ, Ξ, Ω, charm and bottom baryons, Ωccc and pentaquarks drawn as purple nucleons, mesons, multiquarks, strangelets, R-hadrons and the glueball as balls in their colours (monopole, black hole and the fundamental ones as before); a placed leptoquark pair set 0.8 Å apart`,
+    `1.39.6 sizes: baryons ${bOk} mesons ${mOk} hyp ${hOk} apart ${apart} ${JSON.stringify(r)}`);
 };
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
