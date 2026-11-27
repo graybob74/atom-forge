@@ -866,6 +866,20 @@ PARTS.nspall = async (page, check) => { // (1.39.5: neutrons over 20 MeV stay in
   const r = run('reflect'), a = run('absorb');
   check(r.left === '11000' && a.left.endsWith('000') && r.dE < 1 && a.dE < 1, `1.39.5 a closed box sends back neutrons of 1 and 14 MeV (a reflector's) but keeps those of 50 MeV, 1 and 5 GeV in its wall (they bounced hundreds of times before), the books kept`, `1.39.5 nspall: ${JSON.stringify({ r, a })}`);
 };
+PARTS.sizes = async (page, check) => { // (1.39.6: free p, n, e drawn half as big; baryons as purple nucleons with their symbol)
+  const X = load('all', { seed: 1 });
+  const bar = ['Lam', 'Sig+', 'Xi-', 'Omg-', 'Lc+', 'Lamb', 'Omccc', 'Pc4312'].filter(k => X.XP[k]), not = ['pi+', 'K-', 'Jpsi', 'slet', 'qRem', 'wimp', 'mu-'].filter(k => X.XP[k]);
+  const bOk = bar.every(X.plainBaryon) && !not.some(X.plainBaryon);
+  let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
+  const r = await page.evaluate(async () => {
+    const w = (ms) => new Promise(res => setTimeout(res, ms)); loadPreset('empty'); setRunning(false); W.decayOn = false; await w(100); R.s = 100;
+    const o = { e: Math.max(1.2, FREE_E_R * R.s), n: freeR(FREE_N_R, R.s), H: addNuc(1, 0, 1, 3, 1, 0, 0, false).rd * R.s };
+    for (const sp of ['Lam', 'Omg-']) addExo(sp, 0, 0, 0.03, 1, 0); R.dirty = true; await w(200); return o;
+  });
+  if (own) { if (own.errors.length) check(false, '', '1.39.6 sizes page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
+  check(bOk && r.e === 6 && r.n === 10 && r.n < r.H / 3, `1.39.6 at 100 px/Å a free electron is drawn 6 px across its radius (12 before), a neutron 10 (20), a hydrogen atom ${r.H.toFixed(0)}; Λ, Σ, Ξ, Ω, charm and bottom baryons, Ωccc and pentaquarks drawn as purple nucleons, mesons and the rest as before`,
+    `1.39.6 sizes: baryons ${bOk} ${JSON.stringify(r)}`);
+};
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {
     if (only && only.length && !only.includes(k)) continue;

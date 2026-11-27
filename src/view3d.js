@@ -177,7 +177,7 @@ function pick3(px, py, extra = 6) {
   let hit = null, hz = Infinity, near = null, nd = Infinity;
   for (const p of W.parts) {
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
-    const sc = C3.F / o[2], r = p.k === NUC ? Math.max(p.Z === 0 ? 2.2 : 2.4, Math.max(rd3(p), 0.2) * sc) : Math.max(1.8, 0.15 * sc);
+    const sc = C3.F / o[2], r = p.k === NUC ? (p.Z === 0 ? freeR(FREE_N_R, sc) : p.ne === 0 && p.Z + p.N === 1 ? freeR(p.rd * FREE_P_K, sc) : Math.max(2.4, Math.max(rd3(p), 0.2) * sc)) : Math.max(1.2, FREE_E_R * 1.25 * sc); // (free nucleons and leptons half their old size, 1.39.6)
     const d = Math.hypot(o[0] - px, o[1] - py);
     if (d <= r) { if (o[2] < hz) { hz = o[2]; hit = p; } }
     else if (d - r < extra && d - r < nd) { nd = d - r; near = p; }
@@ -552,7 +552,7 @@ function render3d(rt) {
     V[b + 3] = -1;
     if (p.dead || !proj3(p.x, p.y, p.z, o)) continue;
     const sc = F / o[2];
-    const r = p.k !== NUC ? Math.max(1.8, 0.12 * sc) : p.Z === 0 ? Math.max(2.2, 0.2 * sc) : p.ne === 0 ? Math.max(2.6, p.rd * as * sc) : Math.max(2.4, rd3(p) * as * sc);
+    const r = p.k !== NUC ? Math.max(1.2, FREE_E_R * sc) : p.Z === 0 ? freeR(FREE_N_R, sc) : p.ne === 0 ? (p.Z + p.N === 1 ? freeR(p.rd * FREE_P_K * as, sc) : Math.max(2.6, p.rd * as * sc)) : Math.max(2.4, rd3(p) * as * sc); // (1.39.6)
     const cut = pad + (det ? Math.min(r, 4 * (R.w + R.h)) : 0); // (a near atom drawn larger than the view, its centre off the screen, still covers it: the true sizes' wash)
     if (o[0] < -cut || o[1] < -cut || o[0] > R.w + cut || o[1] > R.h + cut) continue;
     V[b] = o[0]; V[b + 1] = o[1]; V[b + 2] = o[2]; V[b + 3] = r;
@@ -885,14 +885,14 @@ function exoBalls3() {
   for (const o of W.exo) {
     if (o.dead || o._pic3 || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1], z = A[2]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
-    const r = exoR3(z), c = XP[o.sp].col;
-    out.push({ o, x, y, z, r, c, g: clamp(r * 4.5, 7, 34), ga: o.q ? 0.8 : 0.45 });
+    const bar = plainBaryon(o.sp), r = bar ? freeR(FREE_N_R * 1.05, C3.F / z) : exoR3(z), c = bar ? BARYON_COL : XP[o.sp].col; // (a baryon as a nucleon is, purple, 1.39.6)
+    out.push({ o, x, y, z, r, c, g: clamp(r * (bar ? 3.2 : 4.5), 7, 34), ga: bar ? 0.4 : o.q ? 0.8 : 0.45 });
   }
   return out;
 }
 function exoBall2d3(ctx, e) { // (Canvas 2D: its glow, its ball, the depth fog over it)
   if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(e.c, e.g), e.x, e.y, e.ga); ctx.globalCompositeOperation = 'source-over'; }
-  const hx = _xpHex[e.o.sp] || (_xpHex[e.o.sp] = '#' + e.c.map(v => v.toString(16).padStart(2, '0')).join('')), sp = litSprite3(hx), k = e.r / LIT_R;
+  const hx = e.c === BARYON_COL ? '#af7dff' : _xpHex[e.o.sp] || (_xpHex[e.o.sp] = '#' + e.c.map(v => v.toString(16).padStart(2, '0')).join('')), sp = litSprite3(hx), k = e.r / LIT_R; // (a baryon's purple, 1.39.6)
   ctx.drawImage(sp.c, e.x - sp.size * k / 2, e.y - sp.size * k / 2, sp.size * k, sp.size * k);
   const f = fog3(e.z); if (f > 0.02) { ctx.globalAlpha = f; ctx.fillStyle = CHAMBER.bg0; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
 }
@@ -914,12 +914,13 @@ function drawExos3(ctx) {
       let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
     } else { // (the exotic atoms at their depth's scale, as the flat view, 1.28.1)
-      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
+      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = plainBaryon(o.sp) ? 0 : exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
     }
     o._pic3 = false; // (drawn as a ball in depth, among the atoms: exoBalls3; here its label, unless an atom in front hides it)
     if (!_occ3.built) occBuild3();
     if (occHidden3(x, y, A[2])) continue;
+    if (plainBaryon(o.sp)) { const r = freeR(FREE_N_R * 1.05, C3.F / A[2]); if (r > 9) { label(ctx, o.lab, x, y, r, '#1b1430'); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; } else { ctx.fillStyle = rgba(BARYON_COL, 0.95); ctx.fillText(o.lab, x, y - r - 3); } continue; } // (1.39.6)
     const r = exoR3(A[2]); ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - r - 3);
   } } finally { R.pic3 = null; }
   ctx.restore();

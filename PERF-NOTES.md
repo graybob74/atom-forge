@@ -2033,6 +2033,22 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
+## 1.39.6 (not yet released)
+
+- **Free protons, neutrons and electrons drawn half as big outside the particle view** (the owner, 2026-11-27: "free
+  protons, neutrons, and electrons should be drawn smaller in normal mode"; "particles visually overlapping … just
+  looks wrong"). A free electron or positron was a ball 0.12 Å across the radius, a neutron 0.2 Å, a lone proton or
+  antiproton its 0.21 Å display radius: half a hydrogen atom (0.39 Å), so the spray of a collision crowded into one
+  another. Now 0.06, 0.1 and 0.105 Å (`FREE_E_R`, `FREE_N_R`, `FREE_P_K`, `freeR`; least 1.2–1.6 px), in the canvas, the
+  WebGL slots and 3-D. Only the drawing: the particles' sizes in the physics are unchanged.
+- **Baryons drawn as nucleons are** (the owner: "Other exotic baryons should be drawn like a purple proton or neutron,
+  with the same label system (symbol in the middle) instead of an open dot/ quarks (should only be that in particle
+  view)"). Outside the particle view a baryon other than the nucleon (Λ, Σ, Ξ, Ω, Δ, charm and bottom baryons, Ωccc,
+  the pentaquarks, the dibaryon and their antiparticles: `plainBaryon`) is a purple ball (`BARYON_COL`) the size of a
+  free nucleon, its symbol inside once the ball is 9 px across the radius (as the neutron's "n"), above it when
+  smaller (`baryonBall`; 3-D `exoBalls3`); its quarks are drawn only in the particle view. Mesons keep 1.39.4's look.
+  Check: f_139 `sizes`.
+
 ## 1.39.5 (released 2026-11-26)
 
 - **Fast neutrons stay in a closed box's wall** (the owner, 2026-11-26, with a screenshot of a leptoquark pair's event

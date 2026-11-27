@@ -539,7 +539,7 @@ function glSlotsPrepare() {
   for (let i = 0; i < hi; i++) {
     const c4 = 4 * i;
     if (DEAD[i] === 1 || K[i] !== NUC || (Z[i] > 0 && NE[i] === 0)) { C[c4 + 3] = 0; continue; }
-    if (Z[i] === 0) { Y[c4] = 0.2; Y[c4 + 1] = 2.2; Y[c4 + 2] = 1e9; C[c4] = nCol[0]; C[c4 + 1] = nCol[1]; C[c4 + 2] = nCol[2]; C[c4 + 3] = 255; continue; }
+    if (Z[i] === 0) { Y[c4] = FREE_N_R; Y[c4 + 1] = 1.6; Y[c4 + 2] = 1e9; C[c4] = nCol[0]; C[c4 + 1] = nCol[1]; C[c4 + 2] = nCol[2]; C[c4 + 3] = 255; continue; }
     const p = OBJ[i], col = mode === 'element' ? elColor(Z[i], ANTI[i] === 1) : hexc(atomColor(p));
     Y[c4] = (W.d3 && typeof rd3 === 'function' ? rd3(p) : p.rd) * R.as; Y[c4 + 1] = 2.4; Y[c4 + 2] = maxAtom; C[c4] = col[0]; C[c4 + 1] = col[1]; C[c4 + 2] = col[2]; C[c4 + 3] = 255; // (3-D: lone ions drawn smaller, rd3, 1.23.2)
   }
@@ -845,7 +845,7 @@ function drawParticles(rt) {
   // laid down here; the 2D pass below then adds what goes on top of them and draws whatever is not a plain ball
   const glBalls = gl && (bohrMode === 'auto' || bohrMode === 'on');
   if (glBalls) {
-    const lite = R.lite, rl = Math.max(1.8, 0.12 * s), rlg = clamp(rl * 4.5, 7, 28), eCol = hexc(E_COL), pCol = hexc(POS_COL);
+    const lite = R.lite, rl = Math.max(1.2, FREE_E_R * s), rlg = clamp(rl * 4.5, 7, 28), eCol = hexc(E_COL), pCol = hexc(POS_COL);
     const bohrAll = bohrMode === 'on';
     if (!bohrAll) glDrawSlots(S.hi); // atoms and neutrons: one draw call from the slot textures
     for (let j = 0; j < np; j++) { // free leptons, with their glows, by item (few)
@@ -879,7 +879,7 @@ function drawParticles(rt) {
         ctx.globalCompositeOperation = 'source-over'; drawSprite(nucleusSprite(0, 1, nucleonR(), p.anti), x, y);
         continue;
       }
-      const r = Math.max(2.2, 0.2 * s);
+      const r = freeR(FREE_N_R, s); // (1.39.6: half what it was)
       if (!glBalls) drawSprite(ballSprite(N_COL, r), x, y);
       if (r > 9 && bohrMode !== 'nuc') label(ctx, 'n', x, y, r, '#1b2430');
       continue;
@@ -895,7 +895,7 @@ function drawParticles(rt) {
       continue;
     }
     if (p.ne === 0) { // bare nucleus
-      const rn = Math.max(2.6, p.rd * R.as * s);
+      const rn = p.Z + p.N === 1 ? freeR(p.rd * FREE_P_K * R.as, s) : Math.max(2.6, p.rd * R.as * s); // (a lone proton or antiproton half its size, 1.39.6)
       ctx.globalCompositeOperation = 'lighter';
       if (!R.lite) drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], rn * 3.2), x, y, 0.35);
       ctx.globalCompositeOperation = 'source-over';
@@ -1195,6 +1195,7 @@ function drawExos() {
     if (x < -mg || y < -mg || x > R.w + mg || y > R.h + mg) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
     if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
+    else if (plainBaryon(o.sp)) { const t = baryonBall(ctx, o, x, y, R.s); if (t > 0) { ctx.fillStyle = rgba(BARYON_COL, 0.95); ctx.fillText(o.lab, x, y - t - 2); } continue; } // (1.39.6)
     else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s) || exoInsideMin(ctx, o, x, y, c, hx); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } } // (1.39.4: what has parts in the particle view shows them here too, at a size that reads: no longer a glowing dot)
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
@@ -1387,7 +1388,7 @@ function exoBag(ctx, o, x, y, c, b, qc, k0) {
 /* A free electron or positron: a glowing point (classical: it has a position and a path). */
 function drawLepton(ctx, p, x, y, bohrMode) {
   const col = p.k === ELEC ? E_COL : POS_COL;
-  const r = bohrMode === 'nuc' ? electronR() : Math.max(1.8, 0.12 * R.s);
+  const r = bohrMode === 'nuc' ? electronR() : Math.max(1.2, FREE_E_R * R.s); // (1.39.6: half what it was)
   if (!R.lite) {
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(hexc(col), clamp(r * 4.5, 7, 28)), x, y, p.rad ? 1 : 0.55);
@@ -1514,6 +1515,23 @@ function exoInsideMin(ctx, o, x, y, c, hx) {
   return e.top;
 }
 function electronR() { return clamp(0.035 * R.s, 1.0, 3.0); }
+/* (1.39.6; the owner: "free protons, neutrons, and electrons should be drawn smaller in normal mode") Outside the
+   particle view a free electron or positron was 0.12 Å across the radius, a neutron 0.2 Å, a lone proton its 0.21 Å:
+   half a hydrogen atom, so a spray of them crowded into one another. Now half that. And a baryon other than the
+   nucleon (Λ, Σ, Ξ, Ω, Δ, charm and bottom baryons, pentaquarks, their antiparticles) is drawn as a nucleon is, a ball
+   of that size in BARYON_COL with its symbol inside once it is big enough to read, its quarks only in the particle view. */
+const FREE_E_R = 0.06, FREE_N_R = 0.1, FREE_P_K = 0.5, BARYON_COL = [175, 125, 255];
+function freeR(rd, s) { return Math.max(1.6, rd * s); }
+function plainBaryon(sp) { const d = XP[sp]; return !!d && Math.abs(d.B || 0) >= 0.99 && Math.abs(d.B) <= 2.01 && !d.atom && !d.xat && !d.hypN && !d.remnant && sp !== 'slet' && !(d.hypo && d.dark); }
+/* A baryon outside the particle view: a ball the size of a free nucleon, its symbol inside when it reads; returns 0 when
+   the symbol is inside (no label above), else how far above to put it. */
+function baryonBall(ctx, o, x, y, s) {
+  const r = freeR(FREE_N_R * 1.05, s), hx = '#' + BARYON_COL.map(v => v.toString(16).padStart(2, '0')).join('');
+  if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(BARYON_COL, clamp(r * 3.2, 7, 30)), x, y, 0.4); ctx.globalCompositeOperation = 'source-over'; }
+  drawSprite(ballSprite(hx, r), x, y);
+  if (r > 9) { ctx.save(); label(ctx, o.lab, x, y, r, '#1b1430'); ctx.restore(); return -1; }
+  return r;
+}
 /* Muonium's nucleus is a μ⁺: a lepton, a point with no nucleons (it was drawn as hydrogen's proton, 1.26 bug fix). */
 function muNucleus(ctx, x, y, rmin) {
   const rl = Math.max(rmin || 1.6, electronR() * 1.3);
