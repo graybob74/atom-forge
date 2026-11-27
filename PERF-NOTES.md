@@ -2059,6 +2059,12 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   fundamental ones (WIMP, axion, sterile neutrino, HNL, neutralino, millicharged, dark photon, Z′, leptoquarks) stay
   points as leptons do. The symbol inside is the short one (`sym`: Pc⁺, d*⁺, S, G) when it fits the ball, else the
   label goes above (Tcc(3875)⁺, Pcs(4459)⁰).
+- **The microscopic black hole drawn glowing** (the owner: "isn't the event horizon glow on black hole from gas that's
+  around it, or is that only the acretion disc?"; shown before and after, "Sure, do it"). It was a dark disc in a warm
+  ring: the look of a large black hole lit by its accretion flow, that light bent round the shadow. A 12 TeV one has no
+  gas (it lives about 10⁻²⁷ s); its light is its Hawking radiation (hundreds of GeV), which comes from the area of its
+  capture cross-section, the size its shadow would be. Now a white-hot disc softening to blue-white at its edge, in a
+  faint blue halo, the old disc-and-ring's size (`exoInside`, every view and 3-D). Drawing only.
 - **A placed leptoquark pair no longer on top of itself** (the owner: "the lq and anti lq spawn in the same place when
   you place them down"). Set down at rest (`fireSpec`'s `pairMade` branch, KE under 1 keV) they are put 0.4 Å either
   side of the point along their directions; fired, they are still made at one point. Check: f_139 `sizes`.

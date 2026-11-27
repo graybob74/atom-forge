@@ -34116,11 +34116,17 @@ function exoInside(ctx, o, x, y, c, hx) {
     return nsp.rn + 2;
   }
   if (o.sp === 'slet') return sletInside(ctx, o, x, y, c, b);
-  if (o.sp === 'BH') { // (a microscopic black hole: dark, glowing with its Hawking radiation, 1.39.1)
-    const rb = Math.max(2.5, b * 0.9); ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite([255, 190, 120], Math.max(8, rb * 3.5)), x, y, 0.55); ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,210,150,0.9)'; ctx.lineWidth = Math.max(1, rb * 0.18); ctx.beginPath(); ctx.arc(x, y, rb * 1.15, 0, Math.PI * 2); ctx.stroke();
-    return rb * 1.2 + 2;
+  if (o.sp === 'BH') { // (a microscopic black hole, glowing with its Hawking radiation, 1.39.1)
+    /* (1.39.6; the owner: "isn't the event horizon glow on black hole from gas that's around it?") The dark disc in a
+       bright ring was the look of a large black hole lit by the hot gas of its accretion flow, its light bent round the
+       shadow. A microscopic one has no gas (it lives about 10⁻²⁷ s); its light is its Hawking radiation, at hundreds of
+       GeV, and it comes from the area that would be its shadow (its capture cross-section, the greybody factors): seen,
+       a glowing disc of about 2.6 horizon radii, white-hot, its edge softer as the escape falls off there. */
+    const rb = Math.max(2.5, b * 0.9) * 1.25;
+    ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite([170, 195, 255], Math.max(10, rb * 4)), x, y, 0.65);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rb); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(225,235,255,0.95)'); g.addColorStop(0.85, 'rgba(160,185,255,0.75)'); g.addColorStop(1, 'rgba(120,150,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+    return rb + 2;
   }
   if (o.sp === 'G2370') { // (a glueball: gluons only, as loops of colour field, 1.39.1)
     const rb = b * 1.15; ctx.globalCompositeOperation = 'lighter'; if (!R.lite) drawSprite(glowSprite(c, Math.max(7, rb * 3)), x, y, 0.35); ctx.globalCompositeOperation = 'source-over';
