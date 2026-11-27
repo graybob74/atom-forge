@@ -2046,8 +2046,13 @@ thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left
   view)"). Outside the particle view a baryon other than the nucleon (Λ, Σ, Ξ, Ω, Δ, charm and bottom baryons, Ωccc,
   the pentaquarks, the dibaryon and their antiparticles: `plainBaryon`) is a purple ball (`BARYON_COL`) the size of a
   free nucleon, its symbol inside once the ball is 9 px across the radius (as the neutron's "n"), above it when
-  smaller (`baryonBall`; 3-D `exoBalls3`); its quarks are drawn only in the particle view. Mesons keep 1.39.4's look.
-  Check: f_139 `sizes`.
+  smaller (`baryonBall`; 3-D `exoBalls3`); its quarks are drawn only in the particle view. And then ("Apply the same
+  change to mesons and protons"): mesons (a quark and an antiquark, and the tetraquarks: `plainMeson`) likewise, a
+  nucleon-sized ball in their own colour (π orange, K yellow, J/ψ cyan …) with the symbol inside; a lone proton or
+  antiproton shows "p" or "p̄" inside, as the neutron its "n", instead of a tag below.
+- **A placed leptoquark pair no longer on top of itself** (the owner: "the lq and anti lq spawn in the same place when
+  you place them down"). Set down at rest (`fireSpec`'s `pairMade` branch, KE under 1 keV) they are put 0.4 Å either
+  side of the point along their directions; fired, they are still made at one point. Check: f_139 `sizes`.
 
 ## 1.39.5 (released 2026-11-26)
 

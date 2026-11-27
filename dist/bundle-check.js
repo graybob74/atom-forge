@@ -12621,7 +12621,8 @@ function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   }
   if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].pairMade) { // (a leptoquark: made with its antiparticle, flying apart, as at the LHC; 1.39.2 item 110)
     if (W.exo.length >= MAX_EXO - 1) return null;
-    const K = Math.max(1, KE), a = addExo(spec.sp, x, y, K, ux, uy, resPlaceMass(spec.sp), z, uz), b = addExo(XP[spec.sp].cc, x, y, K, -ux, -uy, resPlaceMass(XP[spec.sp].cc), z, -uz);
+    const K = Math.max(1, KE), dd = KE < 1e3 ? 0.4 : 0; // (set down at rest, 1.39.6: 0.4 Å either side, not drawn on top of each other)
+    const a = addExo(spec.sp, x + ux * dd, y + uy * dd, K, ux, uy, resPlaceMass(spec.sp), z + (uz || 0) * dd, uz), b = addExo(XP[spec.sp].cc, x - ux * dd, y - uy * dd, K, -ux, -uy, resPlaceMass(XP[spec.sp].cc), z - (uz || 0) * dd, -uz);
     a.pair = b; b.pair = a; return a;
   }
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, resPlaceMass(spec.sp), z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)
@@ -33734,7 +33735,8 @@ function drawParticles(rt) {
       if (!R.lite) drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], rn * 3.2), x, y, 0.35);
       ctx.globalCompositeOperation = 'source-over';
       nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti);
-      if (rn > 7 && lblOn(p) && bohrMode !== 'nuc') smallTag(ctx, speciesLabel(p), x, y + rn + 9);
+      if (p.Z + p.N === 1 && bohrMode !== 'nuc') { if (rn > 9) label(ctx, p.anti ? 'p̄' : 'p', x, y, rn, '#2a1414'); } // (a lone proton's symbol inside, as the neutron's, 1.39.6)
+      else if (rn > 7 && lblOn(p) && bohrMode !== 'nuc') smallTag(ctx, speciesLabel(p), x, y + rn + 9);
       continue;
     }
     const r = Math.max(2.4, p.rd * R.as * s);
@@ -34029,7 +34031,7 @@ function drawExos() {
     if (x < -mg || y < -mg || x > R.w + mg || y > R.h + mg) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
     if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
-    else if (plainBaryon(o.sp)) { const t = baryonBall(ctx, o, x, y, R.s); if (t > 0) { ctx.fillStyle = rgba(BARYON_COL, 0.95); ctx.fillText(o.lab, x, y - t - 2); } continue; } // (1.39.6)
+    else if (plainHadron(o.sp)) { const t = baryonBall(ctx, o, x, y, R.s); if (t > 0) { ctx.fillStyle = rgba(hadronCol(o.sp), 0.95); ctx.fillText(o.lab, x, y - t - 2); } continue; } // (1.39.6)
     else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s) || exoInsideMin(ctx, o, x, y, c, hx); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } } // (1.39.4: what has parts in the particle view shows them here too, at a size that reads: no longer a glowing dot)
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
@@ -34356,12 +34358,17 @@ function electronR() { return clamp(0.035 * R.s, 1.0, 3.0); }
    of that size in BARYON_COL with its symbol inside once it is big enough to read, its quarks only in the particle view. */
 const FREE_E_R = 0.06, FREE_N_R = 0.1, FREE_P_K = 0.5, BARYON_COL = [175, 125, 255];
 function freeR(rd, s) { return Math.max(1.6, rd * s); }
+/* (1.39.6, the owner: "Apply the same change to mesons and protons") A meson (a quark and an antiquark, or a tetraquark)
+   likewise: a ball the size of a nucleon, in its own colour, its symbol inside. */
+function plainMeson(sp) { const d = XP[sp], qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[sp]; return !!d && !d.B && !!qc && (qc.length === 2 || qc.length === 4) && !d.hypo && !d.atom && !d.xat; }
+function plainHadron(sp) { return plainBaryon(sp) || plainMeson(sp); }
+function hadronCol(sp) { return plainBaryon(sp) ? BARYON_COL : XP[sp].col; }
 function plainBaryon(sp) { const d = XP[sp]; return !!d && Math.abs(d.B || 0) >= 0.99 && Math.abs(d.B) <= 2.01 && !d.atom && !d.xat && !d.hypN && !d.remnant && sp !== 'slet' && !(d.hypo && d.dark); }
 /* A baryon outside the particle view: a ball the size of a free nucleon, its symbol inside when it reads; returns 0 when
    the symbol is inside (no label above), else how far above to put it. */
 function baryonBall(ctx, o, x, y, s) {
-  const r = freeR(FREE_N_R * 1.05, s), hx = '#' + BARYON_COL.map(v => v.toString(16).padStart(2, '0')).join('');
-  if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(BARYON_COL, clamp(r * 3.2, 7, 30)), x, y, 0.4); ctx.globalCompositeOperation = 'source-over'; }
+  const c = hadronCol(o.sp), r = freeR(FREE_N_R * 1.05, s), hx = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+  if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, clamp(r * 3.2, 7, 30)), x, y, 0.4); ctx.globalCompositeOperation = 'source-over'; }
   drawSprite(ballSprite(hx, r), x, y);
   if (r > 9) { ctx.save(); label(ctx, o.lab, x, y, r, '#1b1430'); ctx.restore(); return -1; }
   return r;
@@ -36658,7 +36665,7 @@ function exoBalls3() {
   for (const o of W.exo) {
     if (o.dead || o._pic3 || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1], z = A[2]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
-    const bar = plainBaryon(o.sp), r = bar ? freeR(FREE_N_R * 1.05, C3.F / z) : exoR3(z), c = bar ? BARYON_COL : XP[o.sp].col; // (a baryon as a nucleon is, purple, 1.39.6)
+    const bar = plainHadron(o.sp), r = bar ? freeR(FREE_N_R * 1.05, C3.F / z) : exoR3(z), c = bar ? hadronCol(o.sp) : XP[o.sp].col; // (a baryon as a nucleon is, purple, 1.39.6)
     out.push({ o, x, y, z, r, c, g: clamp(r * (bar ? 3.2 : 4.5), 7, 34), ga: bar ? 0.4 : o.q ? 0.8 : 0.45 });
   }
   return out;
@@ -36687,13 +36694,13 @@ function drawExos3(ctx) {
       let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
     } else { // (the exotic atoms at their depth's scale, as the flat view, 1.28.1)
-      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = plainBaryon(o.sp) ? 0 : exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
+      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = plainHadron(o.sp) ? 0 : exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
     }
     o._pic3 = false; // (drawn as a ball in depth, among the atoms: exoBalls3; here its label, unless an atom in front hides it)
     if (!_occ3.built) occBuild3();
     if (occHidden3(x, y, A[2])) continue;
-    if (plainBaryon(o.sp)) { const r = freeR(FREE_N_R * 1.05, C3.F / A[2]); if (r > 9) { label(ctx, o.lab, x, y, r, '#1b1430'); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; } else { ctx.fillStyle = rgba(BARYON_COL, 0.95); ctx.fillText(o.lab, x, y - r - 3); } continue; } // (1.39.6)
+    if (plainHadron(o.sp)) { const r = freeR(FREE_N_R * 1.05, C3.F / A[2]); if (r > 9) { label(ctx, o.lab, x, y, r, '#1b1430'); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; } else { ctx.fillStyle = rgba(hadronCol(o.sp), 0.95); ctx.fillText(o.lab, x, y - r - 3); } continue; } // (1.39.6)
     const r = exoR3(A[2]); ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - r - 3);
   } } finally { R.pic3 = null; }
   ctx.restore();

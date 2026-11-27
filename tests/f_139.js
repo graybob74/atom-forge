@@ -870,6 +870,8 @@ PARTS.sizes = async (page, check) => { // (1.39.6: free p, n, e drawn half as bi
   const X = load('all', { seed: 1 });
   const bar = ['Lam', 'Sig+', 'Xi-', 'Omg-', 'Lc+', 'Lamb', 'Omccc', 'Pc4312'].filter(k => X.XP[k]), not = ['pi+', 'K-', 'Jpsi', 'slet', 'qRem', 'wimp', 'mu-'].filter(k => X.XP[k]);
   const bOk = bar.every(X.plainBaryon) && !not.some(X.plainBaryon);
+  const mOk = ['pi+', 'pi0', 'K-', 'Jpsi', 'X3872'].filter(k => X.XP[k]).every(X.plainMeson) && !['slet', 'mu-', 'wimp', 'Lam', 'G2370'].some(X.plainMeson); // (1.39.6: mesons likewise)
+  X.PRESETS.empty.build(); X.placeFly({ kind: 'exo', sp: 'LQ' }, 0, 0, 1, 0); const lq = X.W.exo.find(o => o.sp === 'LQ'), apart = Math.hypot(lq.x - lq.pair.x, lq.y - lq.pair.y);
   let own = null; if (!page) { const { openPage } = require('./browser'); own = await openPage({ viewport: { width: 1280, height: 860 }, settle: 800 }); page = own.page; }
   const r = await page.evaluate(async () => {
     const w = (ms) => new Promise(res => setTimeout(res, ms)); loadPreset('empty'); setRunning(false); W.decayOn = false; await w(100); R.s = 100;
@@ -877,8 +879,8 @@ PARTS.sizes = async (page, check) => { // (1.39.6: free p, n, e drawn half as bi
     for (const sp of ['Lam', 'Omg-']) addExo(sp, 0, 0, 0.03, 1, 0); R.dirty = true; await w(200); return o;
   });
   if (own) { if (own.errors.length) check(false, '', '1.39.6 sizes page errors: ' + own.errors.join(' | ')); await own.browser.close(); }
-  check(bOk && r.e === 6 && r.n === 10 && r.n < r.H / 3, `1.39.6 at 100 px/Å a free electron is drawn 6 px across its radius (12 before), a neutron 10 (20), a hydrogen atom ${r.H.toFixed(0)}; Λ, Σ, Ξ, Ω, charm and bottom baryons, Ωccc and pentaquarks drawn as purple nucleons, mesons and the rest as before`,
-    `1.39.6 sizes: baryons ${bOk} ${JSON.stringify(r)}`);
+  check(mOk && Math.abs(apart - 0.8) < 1e-9 && bOk && r.e === 6 && r.n === 10 && r.n < r.H / 3, `1.39.6 at 100 px/Å a free electron is drawn 6 px across its radius (12 before), a neutron 10 (20), a hydrogen atom ${r.H.toFixed(0)}; Λ, Σ, Ξ, Ω, charm and bottom baryons, Ωccc and pentaquarks drawn as purple nucleons, mesons as nucleon-sized balls in their colours; a placed leptoquark pair set 0.8 Å apart`,
+    `1.39.6 sizes: baryons ${bOk} mesons ${mOk} apart ${apart} ${JSON.stringify(r)}`);
 };
 module.exports = async function f139(page, check, say, openPage, only) {
   for (const [k, f] of Object.entries(PARTS)) {

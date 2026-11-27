@@ -885,7 +885,7 @@ function exoBalls3() {
   for (const o of W.exo) {
     if (o.dead || o._pic3 || !proj3(o.x, o.y, o.z || 0, A)) continue;
     const x = A[0], y = A[1], z = A[2]; if (x < -30 || y < -30 || x > R.w + 30 || y > R.h + 30) continue;
-    const bar = plainBaryon(o.sp), r = bar ? freeR(FREE_N_R * 1.05, C3.F / z) : exoR3(z), c = bar ? BARYON_COL : XP[o.sp].col; // (a baryon as a nucleon is, purple, 1.39.6)
+    const bar = plainHadron(o.sp), r = bar ? freeR(FREE_N_R * 1.05, C3.F / z) : exoR3(z), c = bar ? hadronCol(o.sp) : XP[o.sp].col; // (a baryon as a nucleon is, purple, 1.39.6)
     out.push({ o, x, y, z, r, c, g: clamp(r * (bar ? 3.2 : 4.5), 7, 34), ga: bar ? 0.4 : o.q ? 0.8 : 0.45 });
   }
   return out;
@@ -914,13 +914,13 @@ function drawExos3(ctx) {
       let top = 0; try { top = exoInside(ctx, o, x, y, c, hx); } finally { R.s = s0; }
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; }
     } else { // (the exotic atoms at their depth's scale, as the flat view, 1.28.1)
-      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = plainBaryon(o.sp) ? 0 : exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
+      const hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')), top = plainHadron(o.sp) ? 0 : exoAtomPic(ctx, o, x, y, c, hx, C3.F / A[2]) || (() => { const s0 = R.s; R.s = C3.F / A[2]; try { return exoInsideMin(ctx, o, x, y, c, hx); } finally { R.s = s0; } })(); // (1.39.4: its parts, as in the flat view)
       if (top) { o._pic3 = true; ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; }
     }
     o._pic3 = false; // (drawn as a ball in depth, among the atoms: exoBalls3; here its label, unless an atom in front hides it)
     if (!_occ3.built) occBuild3();
     if (occHidden3(x, y, A[2])) continue;
-    if (plainBaryon(o.sp)) { const r = freeR(FREE_N_R * 1.05, C3.F / A[2]); if (r > 9) { label(ctx, o.lab, x, y, r, '#1b1430'); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; } else { ctx.fillStyle = rgba(BARYON_COL, 0.95); ctx.fillText(o.lab, x, y - r - 3); } continue; } // (1.39.6)
+    if (plainHadron(o.sp)) { const r = freeR(FREE_N_R * 1.05, C3.F / A[2]); if (r > 9) { label(ctx, o.lab, x, y, r, '#1b1430'); ctx.font = '600 11px "Azeret Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; } else { ctx.fillStyle = rgba(hadronCol(o.sp), 0.95); ctx.fillText(o.lab, x, y - r - 3); } continue; } // (1.39.6)
     const r = exoR3(A[2]); ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - r - 3);
   } } finally { R.pic3 = null; }
   ctx.restore();

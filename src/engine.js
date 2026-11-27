@@ -9729,7 +9729,8 @@ function fireSpec(spec, x, y, ux, uy, KE, free, z = 0, uz = 0) { // (z, uz: 3-D)
   }
   if (spec.kind === 'exo' && XP[spec.sp] && XP[spec.sp].pairMade) { // (a leptoquark: made with its antiparticle, flying apart, as at the LHC; 1.39.2 item 110)
     if (W.exo.length >= MAX_EXO - 1) return null;
-    const K = Math.max(1, KE), a = addExo(spec.sp, x, y, K, ux, uy, resPlaceMass(spec.sp), z, uz), b = addExo(XP[spec.sp].cc, x, y, K, -ux, -uy, resPlaceMass(XP[spec.sp].cc), z, -uz);
+    const K = Math.max(1, KE), dd = KE < 1e3 ? 0.4 : 0; // (set down at rest, 1.39.6: 0.4 Å either side, not drawn on top of each other)
+    const a = addExo(spec.sp, x + ux * dd, y + uy * dd, K, ux, uy, resPlaceMass(spec.sp), z + (uz || 0) * dd, uz), b = addExo(XP[spec.sp].cc, x - ux * dd, y - uy * dd, K, -ux, -uy, resPlaceMass(XP[spec.sp].cc), z - (uz || 0) * dd, -uz);
     a.pair = b; b.pair = a; return a;
   }
   if (spec.kind === 'exo') return W.exo.length < MAX_EXO ? addExo(spec.sp, x, y, Math.max(1, KE), ux, uy, resPlaceMass(spec.sp), z, uz) : null; // (a muon, pion …: from outside, as any fired particle; 3-D: in depth, 1.24)

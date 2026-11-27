@@ -900,7 +900,8 @@ function drawParticles(rt) {
       if (!R.lite) drawSprite(glowSprite(p.anti ? [190, 120, 255] : [255, 110, 90], rn * 3.2), x, y, 0.35);
       ctx.globalCompositeOperation = 'source-over';
       nucleusBeads(ctx, x, y, rn, p.Z, p.N, 1, p.anti);
-      if (rn > 7 && lblOn(p) && bohrMode !== 'nuc') smallTag(ctx, speciesLabel(p), x, y + rn + 9);
+      if (p.Z + p.N === 1 && bohrMode !== 'nuc') { if (rn > 9) label(ctx, p.anti ? 'p̄' : 'p', x, y, rn, '#2a1414'); } // (a lone proton's symbol inside, as the neutron's, 1.39.6)
+      else if (rn > 7 && lblOn(p) && bohrMode !== 'nuc') smallTag(ctx, speciesLabel(p), x, y + rn + 9);
       continue;
     }
     const r = Math.max(2.4, p.rd * R.as * s);
@@ -1195,7 +1196,7 @@ function drawExos() {
     if (x < -mg || y < -mg || x > R.w + mg || y > R.h + mg) continue;
     const c = XP[o.sp].col, hx = _xpHex[o.sp] || (_xpHex[o.sp] = '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''));
     if (R.view.bohr === 'nuc') { const top = exoInside(ctx, o, x, y, c, hx); if (o.spin && RP.mu) spinArrow(ctx, x, y, o.spin); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 3); continue; } }
-    else if (plainBaryon(o.sp)) { const t = baryonBall(ctx, o, x, y, R.s); if (t > 0) { ctx.fillStyle = rgba(BARYON_COL, 0.95); ctx.fillText(o.lab, x, y - t - 2); } continue; } // (1.39.6)
+    else if (plainHadron(o.sp)) { const t = baryonBall(ctx, o, x, y, R.s); if (t > 0) { ctx.fillStyle = rgba(hadronCol(o.sp), 0.95); ctx.fillText(o.lab, x, y - t - 2); } continue; } // (1.39.6)
     else { const top = exoAtomPic(ctx, o, x, y, c, hx, R.s) || exoInsideMin(ctx, o, x, y, c, hx); if (top) { ctx.fillStyle = rgba(c, 0.95); ctx.fillText(o.lab, x, y - top - 2); continue; } } // (1.39.4: what has parts in the particle view shows them here too, at a size that reads: no longer a glowing dot)
     ctx.globalCompositeOperation = 'lighter';
     drawSprite(glowSprite(c, 10), x, y, o.q ? 0.95 : 0.55);
@@ -1522,12 +1523,17 @@ function electronR() { return clamp(0.035 * R.s, 1.0, 3.0); }
    of that size in BARYON_COL with its symbol inside once it is big enough to read, its quarks only in the particle view. */
 const FREE_E_R = 0.06, FREE_N_R = 0.1, FREE_P_K = 0.5, BARYON_COL = [175, 125, 255];
 function freeR(rd, s) { return Math.max(1.6, rd * s); }
+/* (1.39.6, the owner: "Apply the same change to mesons and protons") A meson (a quark and an antiquark, or a tetraquark)
+   likewise: a ball the size of a nucleon, in its own colour, its symbol inside. */
+function plainMeson(sp) { const d = XP[sp], qc = typeof Q_CONTENT !== 'undefined' && Q_CONTENT[sp]; return !!d && !d.B && !!qc && (qc.length === 2 || qc.length === 4) && !d.hypo && !d.atom && !d.xat; }
+function plainHadron(sp) { return plainBaryon(sp) || plainMeson(sp); }
+function hadronCol(sp) { return plainBaryon(sp) ? BARYON_COL : XP[sp].col; }
 function plainBaryon(sp) { const d = XP[sp]; return !!d && Math.abs(d.B || 0) >= 0.99 && Math.abs(d.B) <= 2.01 && !d.atom && !d.xat && !d.hypN && !d.remnant && sp !== 'slet' && !(d.hypo && d.dark); }
 /* A baryon outside the particle view: a ball the size of a free nucleon, its symbol inside when it reads; returns 0 when
    the symbol is inside (no label above), else how far above to put it. */
 function baryonBall(ctx, o, x, y, s) {
-  const r = freeR(FREE_N_R * 1.05, s), hx = '#' + BARYON_COL.map(v => v.toString(16).padStart(2, '0')).join('');
-  if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(BARYON_COL, clamp(r * 3.2, 7, 30)), x, y, 0.4); ctx.globalCompositeOperation = 'source-over'; }
+  const c = hadronCol(o.sp), r = freeR(FREE_N_R * 1.05, s), hx = '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+  if (!R.lite) { ctx.globalCompositeOperation = 'lighter'; drawSprite(glowSprite(c, clamp(r * 3.2, 7, 30)), x, y, 0.4); ctx.globalCompositeOperation = 'source-over'; }
   drawSprite(ballSprite(hx, r), x, y);
   if (r > 9) { ctx.save(); label(ctx, o.lab, x, y, r, '#1b1430'); ctx.restore(); return -1; }
   return r;
