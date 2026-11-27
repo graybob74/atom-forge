@@ -2033,7 +2033,7 @@ list). Each fails on cc8a0fd (no exports, no wasmIn; grow: 0 module passes, 0.38
 added), mbdump.js, qeqdump.js. Suites run alone here: t_lint, t_wasm, t_threads (the threaded 3-D list the same as one
 thread's), f_126w, f_125s, the flat and 3-D fingerprints; tools/runtests.sh left to the main session.
 
-## 1.39.5 (not yet released)
+## 1.39.5 (released 2026-11-26)
 
 - **Fast neutrons stay in a closed box's wall** (the owner, 2026-11-26, with a screenshot of a leptoquark pair's event
   covered in grey dashed trails: "can you fix these fast neutron trails"). A closed box's walls stop charged particles
